@@ -1,0 +1,2072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Многофункциональный калькулятор</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 1000px;
+            width: 100%;
+        }
+        
+        .calculator {
+            background-color: #333;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            width: 100%;
+        }
+        
+        .display {
+            background-color: #444;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+        
+        .history-panel {
+            max-height: 100px;
+            overflow-y: auto;
+            font-size: 14px;
+            color: #aaa;
+            text-align: right;
+            margin-bottom: 10px;
+            display: none;
+        }
+        
+        .history-panel.show {
+            display: block;
+        }
+        
+        .history-item {
+            margin-bottom: 3px;
+            padding: 3px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .history-item:hover {
+            background-color: #555;
+        }
+        
+        .history {
+            font-size: 14px;
+            color: #aaa;
+            text-align: right;
+            height: 20px;
+            margin-bottom: 5px;
+        }
+        
+        .current {
+            font-size: 36px;
+            color: #fff;
+            text-align: right;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        
+        .memory-indicator {
+            position: absolute;
+            top: 5px;
+            left: 10px;
+            color: #aaa;
+            font-size: 12px;
+        }
+        
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        
+        .scientific-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+            display: none;
+        }
+        
+        button {
+            border: none;
+            border-radius: 5px;
+            color: white;
+            font-size: 18px;
+            height: 60px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .digit {
+            background-color: #666;
+        }
+        
+        .digit:hover {
+            background-color: #777;
+        }
+        
+        .operation {
+            background-color: #ff9500;
+        }
+        
+        .operation:hover {
+            background-color: #ffb143;
+        }
+        
+        .memory {
+            background-color: #555;
+        }
+        
+        .memory:hover {
+            background-color: #666;
+        }
+        
+        .clear, .backspace {
+            background-color: #a5a5a5;
+            color: #000;
+        }
+        
+        .clear:hover, .backspace:hover {
+            background-color: #b8b8b8;
+        }
+        
+        .equals {
+            background-color: #ff9500;
+        }
+        
+        .equals:hover {
+            background-color: #ffb143;
+        }
+        
+        .scientific {
+            background-color: #444;
+        }
+        
+        .scientific:hover {
+            background-color: #555;
+        }
+        
+        .menu-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+        
+        .menu-bar button {
+            background-color: #444;
+            height: 30px;
+            padding: 0 10px;
+            font-size: 14px;
+        }
+        
+        .mode-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
+            color: white;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 28px;
+            margin: 0 10px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #444;
+            transition: .4s;
+            border-radius: 28px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #ff9500;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(32px);
+        }
+        
+        /* Graph section */
+        .graph-section {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        
+        .graph-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .graph-controls input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+            min-width: 200px;
+        }
+        
+        .graph-controls button {
+            background-color: #ff9500;
+            padding: 0 20px;
+            font-size: 16px;
+            height: auto;
+        }
+        
+        .graph-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .graph-option {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .graph-option input[type="number"] {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        
+        .graph-option label {
+            font-size: 14px;
+        }
+        
+        /* Математическая клавиатура для графиков */
+        .graph-keyboard {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .graph-keyboard button {
+            background-color: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+            height: 40px;
+            font-size: 16px;
+        }
+        
+        .graph-keyboard button:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .graph-keyboard .function {
+            background-color: #e6f7ff;
+        }
+        
+        .graph-keyboard .function:hover {
+            background-color: #cceeff;
+        }
+        
+        .graph-keyboard .variable {
+            background-color: #fff0e6;
+        }
+        
+        .graph-keyboard .variable:hover {
+            background-color: #ffe6cc;
+        }
+        
+        .graph-keyboard .constant {
+            background-color: #e6fff0;
+        }
+        
+        .graph-keyboard .constant:hover {
+            background-color: #ccffe6;
+        }
+        
+        .graph-keyboard .operator {
+            background-color: #f0e6ff;
+        }
+        
+        .graph-keyboard .operator:hover {
+            background-color: #e6ccff;
+        }
+        
+        .graph-canvas {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            cursor: grab; /* Показывает, что можно перемещаться */
+        }
+        
+        .graph-canvas:active {
+            cursor: grabbing; /* Показывает, что происходит перемещение */
+        }
+        
+        /* Подсказка зума */
+        .zoom-hint {
+            font-size: 12px;
+            color: #777;
+            margin-top: 5px;
+            text-align: center;
+        }
+        
+        /* Tooltip */
+        .tooltip {
+            display: none;
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            pointer-events: none;
+            z-index: 1000;
+            transform: translate(-50%, -120%);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Добавляем стрелку для тултипа, чтобы он выглядел как диалоговое окно */
+        .tooltip:after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+        }
+        
+        button:hover .tooltip {
+            display: block;
+        }
+        
+        /* Меню функций */
+        .function-menu {
+            display: none;
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 10px;
+            z-index: 100;
+            max-height: 300px;
+            overflow-y: auto;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+        }
+        
+        .function-menu button {
+            background-color: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+            height: 30px;
+            font-size: 14px;
+        }
+        
+        .function-menu button:hover {
+            background-color: #e0e0e0;
+        }
+        
+        /* График-список */
+        .graph-list {
+            margin-top: 15px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+        
+        .graph-list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .graph-list-item .color-indicator {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        
+        .graph-list-item .delete-graph {
+            background-color: #ffeeee;
+            color: #ff5555;
+            border: none;
+            border-radius: 3px;
+            height: 25px;
+            width: 25px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .graph-list-item .delete-graph:hover {
+            background-color: #ffdddd;
+        }
+        
+        /* Кнопки сброса и центрирования графика */
+        .graph-navigation {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .graph-navigation button {
+            background-color: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+            height: 30px;
+            padding: 0 15px;
+            font-size: 14px;
+            border-radius: 5px;
+        }
+        
+        .graph-navigation button:hover {
+            background-color: #e0e0e0;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                gap: 10px;
+            }
+            
+            button {
+                height: 50px;
+                font-size: 16px;
+            }
+            
+            .current {
+                font-size: 28px;
+            }
+            
+            .graph-canvas {
+                height: 300px;
+            }
+            
+            .graph-keyboard {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="calculator">
+            <div class="menu-bar">
+                <button id="history-toggle">История</button>
+                <div class="mode-toggle">
+                    <span>Обычный</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="mode-toggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span>Научный</span>
+                </div>
+            </div>
+            
+            <div class="display">
+                <span class="memory-indicator" id="memory-indicator"></span>
+                <div class="history-panel" id="history-panel"></div>
+                <div class="history" id="history"></div>
+                <div class="current" id="current">0</div>
+            </div>
+            
+            <div class="scientific-buttons" id="scientific-buttons">
+                <button class="scientific" data-action="sin">sin</button>
+                <button class="scientific" data-action="cos">cos</button>
+                <button class="scientific" data-action="tan">tan</button>
+                <button class="scientific" data-action="pi">π</button>
+                
+                <button class="scientific" data-action="asin">asin</button>
+                <button class="scientific" data-action="acos">acos</button>
+                <button class="scientific" data-action="atan">atan</button>
+                <button class="scientific" data-action="e">e</button>
+                
+                <button class="scientific" data-action="log">log</button>
+                <button class="scientific" data-action="ln">ln</button>
+                <button class="scientific" data-action="power">x^y</button>
+                <button class="scientific" data-action="sqrt">√</button>
+                
+                <button class="scientific" data-action="factorial">x!</button>
+                <button class="scientific" data-action="bracket-left">(</button>
+                <button class="scientific" data-action="bracket-right">)</button>
+                <button class="scientific" data-action="percent">%</button>
+                
+                <button class="scientific" data-action="square">x²</button>
+                <button class="scientific" data-action="cube">x³</button>
+                <button class="scientific" data-action="inverse">1/x</button>
+                <button class="scientific" data-action="abs">|x|</button>
+            </div>
+            
+            <div class="buttons">
+                <button class="memory" data-action="mc">MC</button>
+                <button class="memory" data-action="mr">MR</button>
+                <button class="memory" data-action="ms">MS</button>
+                <button class="memory" data-action="m-plus">M+</button>
+                
+                <button class="clear" data-action="clear">C</button>
+                <button class="clear" data-action="clear-entry">CE</button>
+                <button class="backspace" data-action="backspace">⌫</button>
+                <button class="operation" data-action="divide">÷</button>
+                
+                <button class="digit" data-digit="7">7</button>
+                <button class="digit" data-digit="8">8</button>
+                <button class="digit" data-digit="9">9</button>
+                <button class="operation" data-action="multiply">×</button>
+                
+                <button class="digit" data-digit="4">4</button>
+                <button class="digit" data-digit="5">5</button>
+                <button class="digit" data-digit="6">6</button>
+                <button class="operation" data-action="subtract">-</button>
+                
+                <button class="digit" data-digit="1">1</button>
+                <button class="digit" data-digit="2">2</button>
+                <button class="digit" data-digit="3">3</button>
+                <button class="operation" data-action="add">+</button>
+                
+                <button class="digit" data-action="negate">±</button>
+                <button class="digit" data-digit="0">0</button>
+                <button class="digit" data-action="decimal">.</button>
+                <button class="equals" data-action="equals">=</button>
+            </div>
+        </div>
+        
+        <div class="graph-section">
+            <h2>Построение графиков функций</h2>
+            <div class="graph-controls">
+                <input type="text" id="function-input" placeholder="Введите функцию (например: x^2, sin(x), 2*x+1)">
+                <button id="function-menu-btn">ƒ</button>
+                <button id="plot-button">Построить</button>
+                <button id="clear-graph">Очистить</button>
+            </div>
+            
+            <!-- Выпадающее меню функций -->
+            <div id="function-menu" class="function-menu">
+                <button data-func="sin(x)">sin(x)</button>
+                <button data-func="cos(x)">cos(x)</button>
+                <button data-func="tan(x)">tan(x)</button>
+                <button data-func="asin(x)">asin(x)</button>
+                <button data-func="acos(x)">acos(x)</button>
+                <button data-func="atan(x)">atan(x)</button>
+                <button data-func="log(x)">log(x)</button>
+                <button data-func="ln(x)">ln(x)</button>
+                <button data-func="sqrt(x)">√(x)</button>
+                <button data-func="abs(x)">|x|</button>
+                <button data-func="x^2">x²</button>
+                <button data-func="x^3">x³</button>
+                <button data-func="1/x">1/x</button>
+                <button data-func="e^x">e^x</button>
+                <button data-func="x^(1/2)">x^(1/2)</button>
+                <button data-func="x^(1/3)">x^(1/3)</button>
+                <button data-func="2^x">2^x</button>
+                <button data-func="x!">x!</button>
+            </div>
+            
+            <!-- Математическая клавиатура для ввода функций -->
+            <div class="graph-keyboard">
+                <button class="digit" data-graph-input="7">7</button>
+                <button class="digit" data-graph-input="8">8</button>
+                <button class="digit" data-graph-input="9">9</button>
+                <button class="operator" data-graph-input="(">(</button>
+                <button class="operator" data-graph-input=")">)</button>
+                
+                <button class="digit" data-graph-input="4">4</button>
+                <button class="digit" data-graph-input="5">5</button>
+                <button class="digit" data-graph-input="6">6</button>
+                <button class="operator" data-graph-input="+">+</button>
+                <button class="operator" data-graph-input="-">-</button>
+                
+                <button class="digit" data-graph-input="1">1</button>
+                <button class="digit" data-graph-input="2">2</button>
+                <button class="digit" data-graph-input="3">3</button>
+                <button class="operator" data-graph-input="*">×</button>
+                <button class="operator" data-graph-input="/">÷</button>
+                
+                <button class="digit" data-graph-input="0">0</button>
+                <button class="digit" data-graph-input=".">.</button>
+                <button class="variable" data-graph-input="x">x</button>
+                <button class="operator" data-graph-input="^">^</button>
+                <button class="backspace" data-graph-action="backspace">⌫</button>
+                
+                <button class="function" data-graph-input="sin(">sin</button>
+                <button class="function" data-graph-input="cos(">cos</button>
+                <button class="function" data-graph-input="tan(">tan</button>
+                <button class="constant" data-graph-input="pi">π</button>
+                <button class="clear" data-graph-action="clear">C</button>
+                
+                <button class="function" data-graph-input="sqrt(">√</button>
+                <button class="function" data-graph-input="log(">log</button>
+                <button class="function" data-graph-input="ln(">ln</button>
+                <button class="constant" data-graph-input="e">e</button>
+                <button class="function" data-graph-input="abs(">|x|</button>
+            </div>
+            
+            <div class="graph-options">
+                <div class="graph-option">
+                    <label for="x-min">X мин:</label>
+                    <input type="number" id="x-min" value="-10" step="1">
+                </div>
+                <div class="graph-option">
+                    <label for="x-max">X макс:</label>
+                    <input type="number" id="x-max" value="10" step="1">
+                </div>
+                <div class="graph-option">
+                    <label for="y-min">Y мин:</label>
+                    <input type="number" id="y-min" value="-10" step="1">
+                </div>
+                <div class="graph-option">
+                    <label for="y-max">Y макс:</label>
+                    <input type="number" id="y-max" value="10" step="1">
+                </div>
+                <div class="graph-option">
+                    <label for="graph-color">Цвет:</label>
+                    <input type="color" id="graph-color" value="#ff9500">
+                </div>
+            </div>
+            
+            <canvas id="graph-canvas" class="graph-canvas" width="800" height="400"></canvas>
+            <div class="zoom-hint">Используйте Ctrl + колесо мыши для масштабирования, зажмите ЛКМ для перемещения</div>
+            <div class="tooltip" id="graph-tooltip"></div>
+            
+            <div class="graph-navigation">
+                <button id="reset-view">Сбросить вид</button>
+                <button id="center-view">Центрировать</button>
+            </div>
+            
+            <div class="graph-list" id="graph-list">
+                <h3>Текущие графики:</h3>
+                <!-- Графики будут добавляться динамически -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Состояние калькулятора
+            const state = {
+                currentInput: '0',           // Текущий ввод (отображается на дисплее)
+                previousInput: '',           // Предыдущий ввод (для операций)
+                operation: null,             // Текущая операция
+                waitingForOperand: false,    // Ожидается ли ввод нового числа
+                justCalculated: false,       // Был ли только что выполнен расчет (=)
+                lastResult: 0,               // Последний результат вычислений
+                lastOperation: null,         // Последняя операция (для повторного =)
+                lastOperand: null,           // Последний операнд (для повторного =)
+                memory: 0,                   // Значение в памяти
+                hasMemory: false,            // Флаг наличия значения в памяти
+                history: [],                 // История вычислений
+                historyVisible: false,       // Видимость панели истории
+                scientificMode: false,       // Научный режим
+                fullExpression: '',          // Полное выражение (для научного режима)
+                brackets: 0                  // Счетчик открытых скобок
+            };
+            
+            // Элементы DOM
+            const current = document.getElementById('current');
+            const history = document.getElementById('history');
+            const historyPanel = document.getElementById('history-panel');
+            const historyToggle = document.getElementById('history-toggle');
+            const memoryIndicator = document.getElementById('memory-indicator');
+            const modeToggle = document.getElementById('mode-toggle');
+            const scientificButtons = document.getElementById('scientific-buttons');
+            
+            // Управление режимами
+            modeToggle.addEventListener('change', function() {
+                state.scientificMode = this.checked;
+                scientificButtons.style.display = this.checked ? 'grid' : 'none';
+            });
+            
+            // Переключение панели истории
+            historyToggle.addEventListener('click', function() {
+                state.historyVisible = !state.historyVisible;
+                historyPanel.classList.toggle('show', state.historyVisible);
+                updateHistoryPanel();
+            });
+            
+            // Обновление дисплея
+            function updateDisplay() {
+                current.textContent = state.currentInput;
+                
+                // Отображение операции или истории в зависимости от режима
+                if (state.scientificMode && state.fullExpression) {
+                    history.textContent = state.fullExpression;
+                } else if (state.operation && state.previousInput) {
+                    // В обычном режиме показываем текущую операцию
+                    const opSymbol = getOperationSymbol(state.operation);
+                    history.textContent = state.previousInput + ' ' + opSymbol;
+                } else {
+                    history.textContent = '';
+                }
+                
+                // Показываем индикатор памяти, если есть что-то в памяти
+                memoryIndicator.textContent = state.hasMemory ? 'M' : '';
+            }
+            
+            // Обновление панели истории
+            function updateHistoryPanel() {
+                if (!state.historyVisible) return;
+                
+                historyPanel.innerHTML = '';
+                state.history.slice(-10).forEach((item) => {
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'history-item';
+                    historyItem.textContent = `${item.expression} = ${item.result}`;
+                    historyItem.addEventListener('click', () => {
+                        state.currentInput = item.result.toString();
+                        updateDisplay();
+                    });
+                    historyPanel.appendChild(historyItem);
+                });
+            }
+            
+            // Добавление записи в историю
+            function addToHistory(expression, result) {
+                state.history.push({ expression, result });
+                if (state.history.length > 100) {
+                    state.history.shift();
+                }
+                updateHistoryPanel();
+            }
+            
+            // Получение символа операции
+            function getOperationSymbol(op) {
+                const symbols = {
+                    'add': '+',
+                    'subtract': '-',
+                    'multiply': '×',
+                    'divide': '÷',
+                    'power': '^'
+                };
+                return symbols[op] || '';
+            }
+            
+            // Обработка ввода цифр
+            function handleDigit(digit) {
+                // Если ожидается ввод нового числа, начинаем его
+                if (state.waitingForOperand) {
+                    state.currentInput = digit;
+                    state.waitingForOperand = false;
+                } else if (state.justCalculated) {
+                    // Если только что произведен расчет, начинаем новый ввод
+                    state.currentInput = digit;
+                    state.justCalculated = false;
+                } else {
+                    // Добавляем к текущему вводу
+                    state.currentInput = state.currentInput === '0' ? digit : state.currentInput + digit;
+                }
+                updateDisplay();
+            }
+            
+            // Обработка десятичной точки
+            function handleDecimal() {
+                // Если ожидается новый операнд, начинаем с "0."
+                if (state.waitingForOperand) {
+                    state.currentInput = '0.';
+                    state.waitingForOperand = false;
+                } else if (state.justCalculated) {
+                    // Если только что нажали =, начинаем новый ввод
+                    state.currentInput = '0.';
+                    state.justCalculated = false;
+                } else if (state.currentInput.indexOf('.') === -1) {
+                    // Добавляем точку, если ее еще нет
+                    state.currentInput += '.';
+                }
+                updateDisplay();
+            }
+            
+            // Обработка смены знака
+            function handleNegate() {
+                if (state.currentInput !== '0') {
+                    if (state.currentInput.startsWith('-')) {
+                        state.currentInput = state.currentInput.substring(1);
+                    } else {
+                        state.currentInput = '-' + state.currentInput;
+                    }
+                    updateDisplay();
+                }
+            }
+            
+          
+                function handleOperation(op) {
+                // Если в научном режиме, обрабатываем полное выражение
+                if (state.scientificMode) {
+                    const opSymbol = getOperationSymbol(op);
+                    
+                    if (state.justCalculated) {
+                        // Если только что был вычислен результат, используем его в новом выражении
+                        state.fullExpression = state.currentInput + ' ' + opSymbol + ' ';
+                        state.justCalculated = false;
+                    } else if (state.waitingForOperand) {
+                        // Если ожидается ввод, просто меняем операцию
+                        // Проверяем, заканчивается ли выражение на закрывающую скобку
+                        if (state.fullExpression.trim().endsWith(')')) {
+                            // Если да, то добавляем операцию после скобки
+                            state.fullExpression += ' ' + opSymbol + ' ';
+                        } else {
+                            // Иначе заменяем предыдущую операцию
+                            state.fullExpression = state.fullExpression.slice(0, -2) + opSymbol + ' ';
+                        }
+                    } else {
+                        // Добавляем текущий ввод и операцию
+                        state.fullExpression += state.currentInput + ' ' + opSymbol + ' ';
+                    }
+                    
+                    state.waitingForOperand = true;
+                    updateDisplay();
+                    return;
+                }
+                
+                // Стандартный режим калькулятора
+                const currentValue = parseFloat(state.currentInput);
+                
+                // Если мы ожидаем операнд, но получили операцию
+                if (state.waitingForOperand && state.operation) {
+                    // Просто меняем операцию
+                    state.operation = op;
+                    updateDisplay();
+                    return;
+                }
+                
+                // Если это не первая операция, сначала выполняем предыдущую
+                if (!state.justCalculated && state.operation && state.previousInput) {
+                    const prevValue = parseFloat(state.previousInput);
+                    const result = performCalculation(prevValue, currentValue, state.operation);
+                    
+                    // Добавляем в историю
+                    addToHistory(`${prevValue} ${getOperationSymbol(state.operation)} ${currentValue}`, result);
+                    
+                    state.currentInput = result.toString();
+                    state.lastResult = result;
+                }
+                
+                // Сохраняем текущее значение и операцию
+                state.previousInput = state.currentInput;
+                state.operation = op;
+                state.lastOperation = op;
+                state.waitingForOperand = true;
+                state.justCalculated = false;
+                
+                updateDisplay();
+            }
+            
+            // Выполнение вычисления
+            function performCalculation(a, b, operation) {
+                let result;
+                
+                switch (operation) {
+                    case 'add':
+                        result = a + b;
+                        break;
+                    case 'subtract':
+                        result = a - b;
+                        break;
+                    case 'multiply':
+                        result = a * b;
+                        break;
+                    case 'divide':
+                        result = a / b;
+                        break;
+                    case 'power':
+                        result = Math.pow(a, b);
+                        break;
+                    default:
+                        return b;
+                }
+                
+                // Округление для избежания ошибок с плавающей точкой
+                return parseFloat(result.toFixed(12));
+            }
+            
+            // Парсинг выражения с учетом скобок (для научного режима)
+            function parseExpression(expr) {
+                // Нормализация выражения
+                expr = expr.replace(/×/g, '*').replace(/÷/g, '/').replace(/\^/g, '**');
+                
+                try {
+                    // Оценка выражения
+                    return new Function('return ' + expr)();
+                } catch (e) {
+                    console.error('Ошибка при обработке выражения:', e);
+                    return NaN;
+                }
+            }
+            
+            // Обработка нажатия на равно
+            function handleEquals() {
+                // Научный режим
+                if (state.scientificMode && state.fullExpression) {
+                    try {
+                        // Собираем полное выражение
+                        const expr = state.fullExpression + state.currentInput;
+                        const result = parseExpression(expr);
+                        
+                        // Добавляем в историю
+                        addToHistory(expr, result);
+                        
+                        state.lastResult = result;
+                        state.fullExpression = '';
+                        state.currentInput = isFinite(result) ? result.toString() : 'Ошибка';
+                        state.justCalculated = true;
+                        
+                        updateDisplay();
+                        return;
+                    } catch (e) {
+                        console.error('Ошибка при вычислении:', e);
+                        state.currentInput = 'Ошибка';
+                        state.fullExpression = '';
+                        state.justCalculated = true;
+                        updateDisplay();
+                        return;
+                    }
+                }
+                
+                // Стандартный режим
+                const currentValue = parseFloat(state.currentInput);
+                
+                // Если у нас есть операция и предыдущий ввод
+                if (state.operation && state.previousInput) {
+                    const prevValue = parseFloat(state.previousInput);
+                    const result = performCalculation(prevValue, currentValue, state.operation);
+                    
+                    // Добавляем в историю
+                    addToHistory(`${prevValue} ${getOperationSymbol(state.operation)} ${currentValue}`, result);
+                    
+                    // Сохраняем для повторного использования
+                    state.lastOperand = currentValue;
+                    state.lastOperation = state.operation;
+                    
+                    // Обновляем состояние
+                    state.currentInput = result.toString();
+                    state.previousInput = '';
+                    state.operation = null;
+                    state.justCalculated = true;
+                    state.lastResult = result;
+                    
+                } else if (state.justCalculated && state.lastOperation && state.lastOperand) {
+                    // Если повторное нажатие на =, применяем последнюю операцию к текущему значению
+                    const currValue = parseFloat(state.currentInput);
+                    const result = performCalculation(currValue, state.lastOperand, state.lastOperation);
+                    
+                    // Добавляем в историю
+                    addToHistory(`${currValue} ${getOperationSymbol(state.lastOperation)} ${state.lastOperand}`, result);
+                    
+                    state.currentInput = result.toString();
+                    state.lastResult = result;
+                }
+                
+                updateDisplay();
+            }
+            
+            // Обработка памяти
+            function handleMemory(action) {
+                const currentValue = parseFloat(state.currentInput);
+                
+                switch (action) {
+                    case 'mc': // Очистка памяти
+                        state.memory = 0;
+                        state.hasMemory = false;
+                        break;
+                    case 'mr': // Вызов из памяти
+                        if (state.hasMemory) {
+                            state.currentInput = state.memory.toString();
+                            state.waitingForOperand = false;
+                            state.justCalculated = false;
+                        }
+                        break;
+                    case 'ms': // Сохранение в память
+                        state.memory = currentValue;
+                        state.hasMemory = true;
+                        state.waitingForOperand = true;
+                        break;
+                    case 'm-plus': // Добавление в память
+                        state.memory += currentValue;
+                        state.hasMemory = true;
+                        state.waitingForOperand = true;
+                        break;
+                    case 'm-minus': // Вычитание из памяти
+                        state.memory -= currentValue;
+                        state.hasMemory = true;
+                        state.waitingForOperand = true;
+                        break;
+                }
+                updateDisplay();
+            }
+            
+            // Обработка научных функций
+            function handleScientific(action) {
+                const currentValue = parseFloat(state.currentInput);
+                let result;
+                
+                switch (action) {
+                    case 'sin':
+                        result = Math.sin(currentValue);
+                        break;
+                    case 'cos':
+                        result = Math.cos(currentValue);
+                        break;
+                    case 'tan':
+                        result = Math.tan(currentValue);
+                        break;
+                    case 'asin':
+                        result = Math.asin(currentValue);
+                        break;
+                    case 'acos':
+                        result = Math.acos(currentValue);
+                        break;
+                    case 'atan':
+                        result = Math.atan(currentValue);
+                        break;
+                    case 'log':
+                        result = Math.log10(currentValue);
+                        break;
+                    case 'ln':
+                        result = Math.log(currentValue);
+                        break;
+                    case 'sqrt':
+                        result = Math.sqrt(currentValue);
+                        break;
+                    case 'factorial':
+                        result = factorial(currentValue);
+                        break;
+                    case 'square':
+                        result = Math.pow(currentValue, 2);
+                        break;
+                    case 'cube':
+                        result = Math.pow(currentValue, 3);
+                        break;
+                    case 'inverse':
+                        result = 1 / currentValue;
+                        break;
+                    case 'abs':
+                        result = Math.abs(currentValue);
+                        break;
+                    case 'pi':
+                        result = Math.PI;
+                        break;
+                    case 'e':
+                        result = Math.E;
+                        break;
+                    case 'percent':
+                        if (state.operation && state.previousInput) {
+                            const prevValue = parseFloat(state.previousInput);
+                            
+                            // Разные правила для разных операций
+                            switch (state.operation) {
+                                case 'add':
+                                case 'subtract':
+                                    result = (prevValue * currentValue) / 100;
+                                    break;
+                                case 'multiply':
+                                case 'divide':
+                                    result = currentValue / 100;
+                                    break;
+                                default:
+                                    result = (prevValue * currentValue) / 100;
+                            }
+                        } else {
+                            result = currentValue / 100;
+                        }
+                        break;
+                    case 'bracket-left':
+                        if (state.scientificMode) {
+                            if (state.waitingForOperand || state.currentInput === '0') {
+                                state.fullExpression += '(';
+                            } else {
+                                state.fullExpression += state.currentInput + ' * (';
+                            }
+                            state.currentInput = '0';
+                            state.waitingForOperand = false;
+                            state.brackets++;
+                            updateDisplay();
+                            return;
+                        }
+                        break;
+                        case 'bracket-right':
+                        if (state.scientificMode && state.brackets > 0) {
+                            state.fullExpression += state.currentInput + ')';
+                            state.currentInput = '0';
+                            state.waitingForOperand = true;
+                            state.brackets--;
+                            updateDisplay();
+                            return;
+                        }
+                        break;
+                }
+                
+                // Округление для избежания ошибок с плавающей точкой
+                if (result !== undefined) {
+                    result = parseFloat(result.toFixed(12));
+                    
+                    if (!isFinite(result)) {
+                        state.currentInput = 'Ошибка';
+                    } else {
+                        state.currentInput = result.toString();
+                        
+                        // Добавляем в историю
+                        addToHistory(`${action}(${currentValue})`, result);
+                    }
+                    
+                    state.waitingForOperand = true;
+                    updateDisplay();
+                }
+            }
+            
+            // Функция факториала
+            function factorial(n) {
+                if (n < 0 || !Number.isInteger(n) || n > 170) return NaN;
+                if (n === 0 || n === 1) return 1;
+                let result = 1;
+                for (let i = 2; i <= n; i++) {
+                    result *= i;
+                }
+                return result;
+            }
+            
+            // Очистка калькулятора
+            function clearCalculator() {
+                state.currentInput = '0';
+                state.previousInput = '';
+                state.fullExpression = '';
+                state.operation = null;
+                state.waitingForOperand = false;
+                state.justCalculated = false;
+                state.brackets = 0;
+                updateDisplay();
+            }
+            
+            // Очистка текущего ввода
+            function clearEntry() {
+                state.currentInput = '0';
+                state.waitingForOperand = false;
+                updateDisplay();
+            }
+            
+            // Удаление последнего символа
+            function handleBackspace() {
+                if (state.waitingForOperand || state.justCalculated) {
+                    return; // Ничего не делаем, если ожидается новый операнд или был вычислен результат
+                }
+                
+                if (state.currentInput.length > 1) {
+                    state.currentInput = state.currentInput.slice(0, -1);
+                } else {
+                    state.currentInput = '0';
+                }
+                updateDisplay();
+            }
+            
+            // Делегирование событий кнопок калькулятора
+            document.querySelector('.calculator').addEventListener('click', function(e) {
+                const target = e.target;
+                
+                // Обработка ввода цифр
+                if (target.hasAttribute('data-digit')) {
+                    handleDigit(target.getAttribute('data-digit'));
+                }
+                // Обработка действий
+                else if (target.hasAttribute('data-action')) {
+                    const action = target.getAttribute('data-action');
+                    
+                    if (['add', 'subtract', 'multiply', 'divide', 'power'].includes(action)) {
+                        handleOperation(action);
+                    } else if (action === 'equals') {
+                        handleEquals();
+                    } else if (action === 'clear') {
+                        clearCalculator();
+                    } else if (action === 'clear-entry') {
+                        clearEntry();
+                    } else if (action === 'backspace') {
+                        handleBackspace();
+                    } else if (action === 'decimal') {
+                        handleDecimal();
+                    } else if (action === 'negate') {
+                        handleNegate();
+                    } else if (['mc', 'mr', 'ms', 'm-plus', 'm-minus'].includes(action)) {
+                        handleMemory(action);
+                    } else if (['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'log', 'ln', 
+                               'factorial', 'sqrt', 'pi', 'e', 'percent', 'bracket-left', 'bracket-right',
+                               'square', 'cube', 'inverse', 'abs'].includes(action)) {
+                        handleScientific(action);
+                    }
+                }
+            });
+            
+            // ------------ СЕКЦИЯ ГРАФИКОВ ------------
+            
+            // Состояние графиков
+            const graphState = {
+                functions: [], // Массив функций для отображения
+                xMin: -10,
+                xMax: 10,
+                yMin: -10,
+                yMax: 10,
+                zoomFactor: 0.1, // Фактор масштабирования при зуме (меньше = плавнее)
+                isDragging: false, // Флаг, указывающий, что происходит перетаскивание
+                lastMouseX: 0, // Последнее положение мыши по X
+                lastMouseY: 0, // Последнее положение мыши по Y
+                minZoom: 0.01, // Минимальный масштаб (максимальное увеличение)
+                maxZoom: 1000, // Максимальный масштаб (максимальное уменьшение)
+                defaultRange: {
+                    xMin: -10,
+                    xMax: 10,
+                    yMin: -10,
+                    yMax: 10
+                }
+            };
+            
+            // Элементы DOM для графиков
+            const canvas = document.getElementById('graph-canvas');
+            const ctx = canvas.getContext('2d');
+            const plotButton = document.getElementById('plot-button');
+            const clearGraphButton = document.getElementById('clear-graph');
+            const resetViewButton = document.getElementById('reset-view');
+            const centerViewButton = document.getElementById('center-view');
+            const functionInput = document.getElementById('function-input');
+            const xMinInput = document.getElementById('x-min');
+            const xMaxInput = document.getElementById('x-max');
+            const yMinInput = document.getElementById('y-min');
+            const yMaxInput = document.getElementById('y-max');
+            const graphColorInput = document.getElementById('graph-color');
+            const graphList = document.getElementById('graph-list');
+            const functionMenuButton = document.getElementById('function-menu-btn');
+            const functionMenu = document.getElementById('function-menu');
+            
+            // Установка начальных значений диапазона
+            function initializeGraphRange() {
+                graphState.xMin = graphState.defaultRange.xMin;
+                graphState.xMax = graphState.defaultRange.xMax;
+                graphState.yMin = graphState.defaultRange.yMin;
+                graphState.yMax = graphState.defaultRange.yMax;
+                
+                xMinInput.value = graphState.xMin;
+                xMaxInput.value = graphState.xMax;
+                yMinInput.value = graphState.yMin;
+                yMaxInput.value = graphState.yMax;
+            }
+            
+            // Сброс вида графика к значениям по умолчанию
+            function resetGraphView() {
+                initializeGraphRange();
+                redrawGraphs();
+            }
+            
+            // Центрирование вида (относительно осей)
+            function centerGraphView() {
+                const xRange = graphState.xMax - graphState.xMin;
+                const yRange = graphState.yMax - graphState.yMin;
+                const xCenter = (graphState.xMax + graphState.xMin) / 2;
+                const yCenter = (graphState.yMax + graphState.yMin) / 2;
+                
+                graphState.xMin = -xRange / 2;
+                graphState.xMax = xRange / 2;
+                graphState.yMin = -yRange / 2;
+                graphState.yMax = yRange / 2;
+                
+                xMinInput.value = graphState.xMin;
+                xMaxInput.value = graphState.xMax;
+                yMinInput.value = graphState.yMin;
+                yMaxInput.value = graphState.yMax;
+                
+                redrawGraphs();
+            }
+            
+            // Добавляем обработчик для кнопки открытия меню функций
+            functionMenuButton.addEventListener('click', function(e) {
+                // Переключаем видимость меню
+                if (functionMenu.style.display === 'grid') {
+                    functionMenu.style.display = 'none';
+                } else {
+                    // Позиционируем меню рядом с кнопкой
+                    const rect = functionMenuButton.getBoundingClientRect();
+                    functionMenu.style.display = 'grid';
+                    functionMenu.style.top = (rect.bottom + window.scrollY) + 'px';
+                    functionMenu.style.left = (rect.left + window.scrollX) + 'px';
+                }
+                e.stopPropagation();
+            });
+            
+            // Закрываем меню при клике в любом другом месте
+            document.addEventListener('click', function(e) {
+                if (e.target !== functionMenuButton && functionMenu.style.display === 'grid') {
+                    functionMenu.style.display = 'none';
+                }
+            });
+            
+            // Обработчик выбора функции из меню
+            functionMenu.addEventListener('click', function(e) {
+                const target = e.target;
+                if (target.hasAttribute('data-func')) {
+                    const func = target.getAttribute('data-func');
+                    functionInput.value = func;
+                    functionMenu.style.display = 'none';
+                    e.stopPropagation();
+                }
+            });
+            
+            // Обработка клавиатуры для ввода графиков
+            document.querySelector('.graph-keyboard').addEventListener('click', function(e) {
+                const target = e.target;
+                
+                // Обработка ввода символов
+                if (target.hasAttribute('data-graph-input')) {
+                    const input = target.getAttribute('data-graph-input');
+                    
+                    // Получаем текущие позицию курсора и выделение
+                    const start = functionInput.selectionStart;
+                    const end = functionInput.selectionEnd;
+                    const currentValue = functionInput.value;
+                    
+                    // Заменяем выделенный текст или вставляем в позицию курсора
+                    functionInput.value = currentValue.substring(0, start) + input + currentValue.substring(end);
+                    
+                    // Устанавливаем курсор после вставленного текста
+                    functionInput.selectionStart = functionInput.selectionEnd = start + input.length;
+                    
+                    // Фокусируем поле ввода
+                    functionInput.focus();
+                }
+                // Обработка действий (удаление, очистка и т.д.)
+                else if (target.hasAttribute('data-graph-action')) {
+                    const action = target.getAttribute('data-graph-action');
+                    
+                    if (action === 'backspace') {
+                        // Получаем текущие позицию курсора и выделение
+                        const start = functionInput.selectionStart;
+                        const end = functionInput.selectionEnd;
+                        const currentValue = functionInput.value;
+                        
+                        if (start === end) { // Нет выделения
+                            if (start > 0) {
+                                // Удаляем символ перед курсором
+                                functionInput.value = currentValue.substring(0, start - 1) + currentValue.substring(end);
+                                functionInput.selectionStart = functionInput.selectionEnd = start - 1;
+                            }
+                        } else {
+                            // Удаляем выделенный текст
+                            functionInput.value = currentValue.substring(0, start) + currentValue.substring(end);
+                            functionInput.selectionStart = functionInput.selectionEnd = start;
+                        }
+                    } else if (action === 'clear') {
+                        functionInput.value = '';
+                    }
+                    
+                    functionInput.focus();
+                }
+            });
+            
+            // Функции для преобразования координат
+            function mapXToCanvas(x) {
+                return canvas.width * (x - graphState.xMin) / (graphState.xMax - graphState.xMin);
+            }
+            
+            function mapYToCanvas(y) {
+                return canvas.height * (graphState.yMax - y) / (graphState.yMax - graphState.yMin);
+            }
+            
+            // Функция для преобразования координат холста в математические координаты
+            function mapCanvasToX(canvasX) {
+                return graphState.xMin + (canvasX / canvas.width) * (graphState.xMax - graphState.xMin);
+            }
+            
+            function mapCanvasToY(canvasY) {
+                return graphState.yMax - (canvasY / canvas.height) * (graphState.yMax - graphState.yMin);
+            }
+            
+            // Настройка холста
+            function setupCanvas() {
+                // Обновляем настройки из ввода (с проверкой корректности значений)
+                const xMin = parseFloat(xMinInput.value);
+                const xMax = parseFloat(xMaxInput.value);
+                const yMin = parseFloat(yMinInput.value);
+                const yMax = parseFloat(yMaxInput.value);
+                
+                // Проверяем, что значения корректны
+                if (isNaN(xMin) || isNaN(xMax) || isNaN(yMin) || isNaN(yMax)) {
+                    return; // Не обновляем, если значения некорректны
+                }
+                
+                if (xMin >= xMax || yMin >= yMax) {
+                    return; // Не обновляем, если min больше или равен max
+                }
+                
+                // Устанавливаем новые значения
+                graphState.xMin = xMin;
+                graphState.xMax = xMax;
+                graphState.yMin = yMin;
+                graphState.yMax = yMax;
+                
+                // Очистка холста
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Рисуем оси
+                ctx.beginPath();
+                ctx.strokeStyle = '#aaa';
+                ctx.lineWidth = 1;
+                
+                // Вычисляем положение осей на холсте
+                const xRange = graphState.xMax - graphState.xMin;
+                const yRange = graphState.yMax - graphState.yMin;
+                
+                const xOrigin = canvas.width * (-graphState.xMin / xRange);
+                const yOrigin = canvas.height * (graphState.yMax / yRange);
+                
+                // Ось X
+                ctx.moveTo(0, yOrigin);
+                ctx.lineTo(canvas.width, yOrigin);
+                
+                // Ось Y
+                ctx.moveTo(xOrigin, 0);
+                ctx.lineTo(xOrigin, canvas.height);
+                
+                ctx.stroke();
+                
+                // Рисуем сетку
+                ctx.beginPath();
+                ctx.strokeStyle = '#eee';
+                ctx.lineWidth = 0.5;
+                
+                // Расчет оптимального шага сетки (адаптивный)
+                const xStep = calculateGridStep(xRange);
+                const yStep = calculateGridStep(yRange);
+                
+                // Деления по X
+                for (let x = Math.ceil(graphState.xMin / xStep) * xStep; x <= graphState.xMax; x += xStep) {
+                    const canvasX = mapXToCanvas(x);
+                    ctx.moveTo(canvasX, 0);
+                    ctx.lineTo(canvasX, canvas.height);
+                }
+                
+                // Деления по Y
+                for (let y = Math.ceil(graphState.yMin / yStep) * yStep; y <= graphState.yMax; y += yStep) {
+                    const canvasY = mapYToCanvas(y);
+                    ctx.moveTo(0, canvasY);
+                    ctx.lineTo(canvas.width, canvasY);
+                }
+                
+                ctx.stroke();
+                
+                // Метки на осях
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                
+                // Определяем формат вывода чисел в зависимости от масштаба
+                const xFormat = getNumberFormat(xRange);
+                const yFormat = getNumberFormat(yRange);
+                
+                // Метки по X
+                for (let x = Math.ceil(graphState.xMin / xStep) * xStep; x <= graphState.xMax; x += xStep) {
+                    if (Math.abs(x) < 1e-10) continue; // Пропускаем 0
+                    const canvasX = mapXToCanvas(x);
+                    const formattedX = formatNumber(x, xFormat);
+                    ctx.fillText(formattedX, canvasX - 15, yOrigin + 15);
+                }
+                
+                // Метки по Y
+                for (let y = Math.ceil(graphState.yMin / yStep) * yStep; y <= graphState.yMax; y += yStep) {
+                    if (Math.abs(y) < 1e-10) continue; // Пропускаем 0
+                    const canvasY = mapYToCanvas(y);
+                    const formattedY = formatNumber(y, yFormat);
+                    ctx.fillText(formattedY, xOrigin + 5, canvasY + 4);
+                }
+                
+                // Рисуем 0 в начале координат
+                if (graphState.xMin <= 0 && graphState.xMax >= 0 && 
+                    graphState.yMin <= 0 && graphState.yMax >= 0) {
+                    ctx.fillText('0', xOrigin + 5, yOrigin + 15);
+                }
+            }
+            
+            // Функция для расчета оптимального шага сетки
+            function calculateGridStep(range) {
+                // База = 10 в степени floor(log10(range/10))
+                const base = Math.pow(10, Math.floor(Math.log10(range/10)));
+                
+                // Пробуем шаги 1*base, 2*base, 5*base
+                if (range / (base) <= 25) return base;
+                if (range / (2 * base) <= 25) return 2 * base;
+                return 5 * base;
+            }
+            
+            // Функция для определения формата вывода чисел
+            function getNumberFormat(range) {
+                if (range < 0.1) return 'scientific'; // Научный формат для очень маленьких диапазонов
+                if (range < 10) return 'fixed'; // Фиксированный формат с десятичными знаками
+                return 'default'; // Обычный формат для больших диапазонов
+            }
+            
+            // Функция форматирования числа
+            function formatNumber(num, format) {
+                switch (format) {
+                    case 'scientific':
+                        return num.toExponential(1);
+                    case 'fixed':
+                        return num.toFixed(2);
+                    default:
+                        // Ограничиваем длину числа для нормального отображения на графике
+                        return Math.abs(num) < 1e-10 ? '0' : num.toString();
+                }
+            }
+            
+            // Функция для нормализации математического выражения
+            function normalizeMathExpression(expr) {
+                return expr
+                    .replace(/×/g, '*')
+                    .replace(/÷/g, '/')
+                    .replace(/\^/g, '**')
+                    .replace(/sin\(/g, 'Math.sin(')
+                    .replace(/cos\(/g, 'Math.cos(')
+                    .replace(/tan\(/g, 'Math.tan(')
+                    .replace(/asin\(/g, 'Math.asin(')
+                    .replace(/acos\(/g, 'Math.acos(')
+                    .replace(/atan\(/g, 'Math.atan(')
+                    .replace(/log\(/g, 'Math.log10(')
+                    .replace(/ln\(/g, 'Math.log(')
+                    .replace(/sqrt\(/g, 'Math.sqrt(')
+                    .replace(/abs\(/g, 'Math.abs(')
+                    .replace(/\bpi\b/g, 'Math.PI')
+                    .replace(/\be\b/g, 'Math.E');
+            }
+            
+            // Функция для вычисления математического выражения
+            function evaluateExpression(expr, x) {
+                try {
+                    // Нормализация выражения
+                    const safeExpr = normalizeMathExpression(expr);
+                    
+                    // Создаем функцию для вычисления выражения
+                    return new Function('x', `return ${safeExpr}`)(x);
+                } catch (e) {
+                    console.error('Ошибка при вычислении выражения:', e, 'Выражение:', expr);
+                    return NaN;
+                }
+            }
+            
+            // Обновление списка графиков
+            function updateGraphList() {
+                graphList.innerHTML = '';
+                graphList.innerHTML = '<h3>Текущие графики:</h3>';
+                
+                if (graphState.functions.length === 0) {
+                    const noGraphs = document.createElement('p');
+                    noGraphs.textContent = 'Нет активных графиков';
+                    graphList.appendChild(noGraphs);
+                    return;
+                }
+                
+                graphState.functions.forEach((func, index) => {
+                    const graphItem = document.createElement('div');
+                    graphItem.className = 'graph-list-item';
+                    
+                    const colorIndicator = document.createElement('span');
+                    colorIndicator.className = 'color-indicator';
+                    colorIndicator.style.backgroundColor = func.color;
+                    
+                    const functionText = document.createElement('span');
+                    functionText.textContent = `y = ${func.expr}`;
+                    
+                    const deleteButton = document.createElement('button');
+                    deleteButton.className = 'delete-graph';
+                    deleteButton.textContent = '×';
+                    deleteButton.addEventListener('click', () => {
+                        // Удаляем функцию и перерисовываем графики
+                        graphState.functions.splice(index, 1);
+                        redrawGraphs();
+                        updateGraphList();
+                    });
+                    
+                    graphItem.appendChild(colorIndicator);
+                    graphItem.appendChild(functionText);
+                    graphItem.appendChild(deleteButton);
+                    
+                    graphList.appendChild(graphItem);
+                });
+            }
+            
+            // Перерисовка всех графиков
+            function redrawGraphs() {
+                // Обновляем отображение текущего диапазона в полях ввода
+                xMinInput.value = graphState.xMin.toFixed(2);
+                xMaxInput.value = graphState.xMax.toFixed(2);
+                yMinInput.value = graphState.yMin.toFixed(2);
+                yMaxInput.value = graphState.yMax.toFixed(2);
+                
+                setupCanvas();
+                
+                graphState.functions.forEach(func => {
+                    plotFunction(func.expr, func.color);
+                });
+            }
+            
+            // Функция для построения графика
+            function plotFunction(functionExpr, color) {
+                // Рисуем график функции
+                ctx.beginPath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                
+                // Определяем количество точек для отрисовки (чем больше масштаб, тем больше точек)
+                const xRange = graphState.xMax - graphState.xMin;
+                const pointCount = Math.max(canvas.width, 1000); // Минимум 1000 точек для плавности
+                const step = xRange / pointCount;
+                
+                let isFirstValid = true;
+                let prevX, prevY;
+                
+                for (let x = graphState.xMin; x <= graphState.xMax; x += step) {
+                    // Вычисляем значение функции
+                    const y = evaluateExpression(functionExpr, x);
+                    
+                    // Преобразуем в координаты холста
+                    const canvasX = mapXToCanvas(x);
+                    const canvasY = mapYToCanvas(y);
+                    
+                    // Проверяем, является ли точка валидной
+                    const isValid = !isNaN(y) && isFinite(y) && canvasY >= -1000 && canvasY <= canvas.height + 1000;
+                    
+                    if (isValid) {
+                        if (isFirstValid) {
+                            ctx.moveTo(canvasX, canvasY);
+                            isFirstValid = false;
+                        } else {
+                            // Проверяем, нет ли разрыва функции (резкого скачка)
+                            // Это помогает избежать линий, соединяющих разрывы функции
+                            const distance = Math.hypot(canvasX - prevX, canvasY - prevY);
+                            
+                            if (distance < 100) { // 100 пикселей - порог для определения разрыва
+                                ctx.lineTo(canvasX, canvasY);
+                            } else {
+                                ctx.moveTo(canvasX, canvasY);
+                            }
+                        }
+                        
+                        prevX = canvasX;
+                        prevY = canvasY;
+                    } else if (!isFirstValid) {
+                        // Если была валидная точка, но теперь встретилась невалидная,
+                        // это может быть разрыв функции, поэтому начинаем новый путь.
+                        isFirstValid = true;
+                    }
+                }
+                
+                ctx.stroke();
+            }
+            
+            // Функция для построения графика (обработчик кнопки)
+            function plotGraph() {
+                const functionExpr = functionInput.value;
+                if (!functionExpr) return;
+                
+                // Проверяем, что выражение корректно
+                try {
+                    const testResult = evaluateExpression(functionExpr, 0);
+                    if (isNaN(testResult) && !isFinite(testResult)) {
+                        alert('Некорректное выражение. Пожалуйста, проверьте синтаксис.');
+                        return;
+                    }
+                } catch (e) {
+                    alert('Ошибка в выражении: ' + e.message);
+                    return;
+                }
+                
+                // Получаем цвет из input
+                const graphColor = graphColorInput.value;
+                
+                // Добавляем функцию в список отображаемых
+                graphState.functions.push({
+                    expr: functionExpr,
+                    color: graphColor
+                });
+                
+                // Подготавливаем холст и рисуем все графики
+                redrawGraphs();
+                
+                // Обновляем список графиков
+                updateGraphList();
+                
+                // Добавляем в историю калькулятора, если в научном режиме
+                if (state.scientificMode) {
+                    state.fullExpression = functionExpr.replace(/x/g, state.currentInput);
+                    handleEquals();
+                }
+            }
+            
+            // Очистка графика
+            function clearGraph() {
+                graphState.functions = [];
+                setupCanvas();
+                updateGraphList();
+            }
+            
+            // Проверка допустимости масштаба
+            function isValidRange(xMin, xMax, yMin, yMax) {
+                const xRange = xMax - xMin;
+                const yRange = yMax - yMin;
+                
+                // Проверяем, что диапазон не слишком мал и не слишком велик
+                return xRange > graphState.minZoom && xRange < graphState.maxZoom &&
+                       yRange > graphState.minZoom && yRange < graphState.maxZoom;
+            }
+            
+            // Функция зумирования графика
+            function zoomGraph(event) {
+                // Проверяем, нажат ли Ctrl
+                if (!event.ctrlKey) return;
+                
+                // Предотвращаем прокрутку страницы
+                event.preventDefault();
+                
+                // Получаем координаты мыши относительно холста
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+                
+                // Преобразуем координаты холста в математические координаты
+                const mathX = mapCanvasToX(mouseX);
+                const mathY = mapCanvasToY(mouseY);
+                
+                // Определяем направление зума и коэффициент
+                const direction = event.deltaY < 0 ? -1 : 1;
+                const factor = 1 + direction * graphState.zoomFactor;
+                
+                // Рассчитываем новые границы с сохранением точки под курсором
+                const newXRange = (graphState.xMax - graphState.xMin) * factor;
+                const newYRange = (graphState.yMax - graphState.yMin) * factor;
+                
+                // Проверяем, что новый диапазон допустим
+                if (!isValidRange(mathX - newXRange/2, mathX + newXRange/2, 
+                                  mathY - newYRange/2, mathY + newYRange/2)) {
+                    return; // Не меняем масштаб, если выходим за пределы
+                }
+                
+                // Определяем относительное положение курсора
+                const relMouseX = (mathX - graphState.xMin) / (graphState.xMax - graphState.xMin);
+                const relMouseY = (mathY - graphState.yMin) / (graphState.yMax - graphState.yMin);
+                
+                // Рассчитываем новые границы, сохраняя позицию курсора
+                const newXMin = mathX - relMouseX * newXRange;
+                const newXMax = newXMin + newXRange;
+                const newYMin = mathY - relMouseY * newYRange;
+                const newYMax = newYMin + newYRange;
+                
+                // Устанавливаем новые границы
+                graphState.xMin = newXMin;
+                graphState.xMax = newXMax;
+                graphState.yMin = newYMin;
+                graphState.yMax = newYMax;
+                
+                // Перерисовываем графики
+                redrawGraphs();
+            }
+            
+            // Начало перетаскивания
+            function startDrag(event) {
+                graphState.isDragging = true;
+                
+                // Получаем текущие координаты мыши
+                const rect = canvas.getBoundingClientRect();
+                graphState.lastMouseX = event.clientX - rect.left;
+                graphState.lastMouseY = event.clientY - rect.top;
+                
+                // Меняем курсор на "grabbing"
+                canvas.style.cursor = 'grabbing';
+            }
+            
+            // Перетаскивание графика
+            function dragGraph(event) {
+                if (!graphState.isDragging) return;
+                
+                // Получаем текущие координаты мыши
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+                
+                // Вычисляем смещение в пикселях
+                const deltaX = mouseX - graphState.lastMouseX;
+                const deltaY = mouseY - graphState.lastMouseY;
+                
+                // Преобразуем смещение в пикселях в математические координаты
+                const xRange = graphState.xMax - graphState.xMin;
+                const yRange = graphState.yMax - graphState.yMin;
+                
+                const mathDeltaX = -deltaX * xRange / canvas.width;
+                const mathDeltaY = deltaY * yRange / canvas.height;
+                
+                // Перемещаем видимую область
+                graphState.xMin += mathDeltaX;
+                graphState.xMax += mathDeltaX;
+                graphState.yMin += mathDeltaY;
+                graphState.yMax += mathDeltaY;
+                
+                // Запоминаем текущие координаты мыши
+                graphState.lastMouseX = mouseX;
+                graphState.lastMouseY = mouseY;
+                
+                // Перерисовываем графики
+                redrawGraphs();
+            }
+            
+            // Завершение перетаскивания
+            function endDrag() {
+                graphState.isDragging = false;
+                
+                // Возвращаем курсор в исходное состояние
+                canvas.style.cursor = 'grab';
+            }
+            
+            // Добавляем обработчики событий мыши для перетаскивания
+            canvas.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', dragGraph);
+            document.addEventListener('mouseup', endDrag);
+            document.addEventListener('mouseleave', endDrag);
+            
+            const tooltip = document.getElementById('graph-tooltip');
+
+            // Функция для поиска ближайшей точки на графике
+            function findNearestPoint(clickX, clickY) {
+                let minDistance = Infinity;
+                let nearestPoint = null;
+                
+                // Перебираем все активные графики
+                graphState.functions.forEach(func => {
+                    const xRange = graphState.xMax - graphState.xMin;
+                    const step = xRange / 1000; // Используем 1000 точек для поиска
+                    
+                    for (let x = graphState.xMin; x <= graphState.xMax; x += step) {
+                        const y = evaluateExpression(func.expr, x);
+                        if (isNaN(y) || !isFinite(y)) continue;
+                        
+                        const canvasX = mapXToCanvas(x);
+                        const canvasY = mapYToCanvas(y);
+                        
+                        const distance = Math.sqrt(
+                            Math.pow(canvasX - clickX, 2) + 
+                            Math.pow(canvasY - clickY, 2)
+                        );
+                        
+                        if (distance < minDistance && distance < 75) { // Увеличиваем максимальное расстояние для поиска с 50 до 75 пикселей
+                            minDistance = distance;
+                            nearestPoint = { x, y, color: func.color, canvasX, canvasY }; // Сохраняем координаты на холсте
+                        }
+                    }
+                });
+                
+                return nearestPoint;
+            }
+
+            // Обработчик движения мыши по холсту
+            canvas.addEventListener('mousemove', function(event) {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+                
+                const nearestPoint = findNearestPoint(mouseX, mouseY);
+                
+                if (nearestPoint) {
+                    // Показываем тултип рядом с курсором мыши
+                    const rect = canvas.getBoundingClientRect();
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = `${event.clientX + 0}px`;
+                    tooltip.style.top = `${event.clientY + 330}px`; 
+                    tooltip.innerHTML = `x: ${nearestPoint.x.toFixed(2)}<br>y: ${nearestPoint.y.toFixed(2)}`;
+                    tooltip.style.borderLeft = `3px solid ${nearestPoint.color}`;
+                    
+                    // Рисуем точку на графике
+                    redrawGraphs(); // Перерисовываем графики, чтобы убрать предыдущую точку
+                    
+                    // Рисуем точку на месте ближайшей точки графика
+                    ctx.beginPath();
+                    ctx.arc(nearestPoint.canvasX, nearestPoint.canvasY, 5, 0, 2 * Math.PI);
+                    ctx.fillStyle = nearestPoint.color;
+                    ctx.fill();
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                } else {
+                    tooltip.style.display = 'none';
+                    redrawGraphs(); // Перерисовываем графики, чтобы убрать точку
+                }
+            });
+
+            // Скрываем тултип при уходе с холста
+            canvas.addEventListener('mouseleave', function() {
+                tooltip.style.display = 'none';
+            });
+            
+            // Добавляем обработчик события для колеса мыши на холсте
+            canvas.addEventListener('wheel', zoomGraph);
+            
+            // Добавляем обработчики событий для кнопок управления графиком
+            resetViewButton.addEventListener('click', resetGraphView);
+            centerViewButton.addEventListener('click', centerGraphView);
+            
+            // Обработчики событий для графиков
+            plotButton.addEventListener('click', plotGraph);
+            clearGraphButton.addEventListener('click', clearGraph);
+            
+            // Изменение настроек графика
+            [xMinInput, xMaxInput, yMinInput, yMaxInput].forEach(input => {
+                input.addEventListener('change', () => {
+                    // Проверяем, корректны ли введенные значения
+                    const xMin = parseFloat(xMinInput.value);
+                    const xMax = parseFloat(xMaxInput.value);
+                    const yMin = parseFloat(yMinInput.value);
+                    const yMax = parseFloat(yMaxInput.value);
+                    
+                    if (isNaN(xMin) || isNaN(xMax) || isNaN(yMin) || isNaN(yMax)) {
+                        // Восстанавливаем предыдущие значения
+                        xMinInput.value = graphState.xMin;
+                        xMaxInput.value = graphState.xMax;
+                        yMinInput.value = graphState.yMin;
+                        yMaxInput.value = graphState.yMax;
+                        return;
+                    }
+                    
+                    if (xMin >= xMax || yMin >= yMax) {
+                        alert('Минимальное значение должно быть меньше максимального');
+                        // Восстанавливаем предыдущие значения
+                        xMinInput.value = graphState.xMin;
+                        xMaxInput.value = graphState.xMax;
+                        yMinInput.value = graphState.yMin;
+                        yMaxInput.value = graphState.yMax;
+                        return;
+                    }
+                    
+                    // Перестраиваем график, когда меняются настройки
+                    graphState.xMin = xMin;
+                    graphState.xMax = xMax;
+                    graphState.yMin = yMin;
+                    graphState.yMax = yMax;
+                    
+                    redrawGraphs();
+                });
+            });
+            
+            // Поддержка клавиши Enter для построения графика
+            functionInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    plotGraph();
+                }
+            });
+            
+            // Инициализация дисплея и холста
+            updateDisplay();
+            initializeGraphRange();
+            setupCanvas();
+            updateGraphList();
+            
+            // Поддержка клавиатуры для калькулятора
+            document.addEventListener('keydown', function(e) {
+                // Не обрабатываем клавиатуру, если фокус в поле ввода функции
+                if (document.activeElement === functionInput) return;
+                
+                // Предотвращаем действие по умолчанию для математических операций
+                if (['+', '-', '*', '/', '^', '=', 'Enter'].includes(e.key)) {
+                    e.preventDefault();
+                }
+                
+                // Цифры
+                if (/[0-9]/.test(e.key)) {
+                    handleDigit(e.key);
+                }
+                // Операции
+                else if (e.key === '+') {
+                    handleOperation('add');
+                }
+                else if (e.key === '-') {
+                    // Если текущий ввод пуст или мы ожидаем новый операнд, начинаем ввод отрицательного числа
+                    if (state.currentInput === '0' || state.waitingForOperand) {
+                        handleNegate(); // Вводим минус как часть числа
+                    } else {
+                        handleOperation('subtract'); // Иначе это операция вычитания
+                    }
+                }
+                else if (e.key === '*') {
+                    handleOperation('multiply');
+                }
+                else if (e.key === '/') {
+                    handleOperation('divide');
+                }
+                else if (e.key === '^') {
+                    handleOperation('power');
+                }
+                else if (e.key === '.') {
+                    handleDecimal();
+                }
+                else if (e.key === 'Enter' || e.key === '=') {
+                    handleEquals();
+                }
+                else if (e.key === 'Escape') {
+                    clearCalculator();
+                }
+                else if (e.key === 'Backspace') {
+                    handleBackspace();
+                }
+                // Скобки для научного режима
+                else if (e.key === '(' && state.scientificMode) {
+                    handleScientific('bracket-left');
+                }
+                else if (e.key === ')' && state.scientificMode) {
+                    handleScientific('bracket-right');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,334 @@
+@import "@fontsource-variable/inter";
+@import "@fontsource/jetbrains-mono";
+@import "tailwindcss";
+
+/* ============================================================
+   Design tokens — dark-first, Linear/Raycast-inspired
+   ============================================================ */
+:root {
+  color-scheme: dark;
+  --bg: #060709;
+  --surface: rgba(255, 255, 255, 0.025);
+  --surface-hover: rgba(255, 255, 255, 0.045);
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --text-1: #f4f5f7;
+  --text-2: #9ba1ac;
+  --text-3: #5c6270;
+  --accent-a: #7c7ff2;
+  --accent-b: #38cfd9;
+  --success: #3fd394;
+  --danger: #f26d80;
+  --warning: #e8b45a;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: "Inter Variable", "Inter", system-ui, -apple-system, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  user-select: none;
+  overflow: hidden;
+}
+
+.font-mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* ============================================================
+   Ambient background: slow aurora + faint grid + noise
+   ============================================================ */
+.app-bg {
+  position: relative;
+  isolation: isolate;
+}
+
+.app-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(
+      1200px 700px at 15% -10%,
+      rgba(124, 127, 242, 0.09),
+      transparent 60%
+    ),
+    radial-gradient(
+      1000px 600px at 90% 110%,
+      rgba(56, 207, 217, 0.07),
+      transparent 60%
+    ),
+    linear-gradient(rgba(255, 255, 255, 0.014) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.014) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    44px 44px,
+    44px 44px;
+  animation: aurora 24s ease-in-out infinite alternate;
+}
+
+/* Film-grain noise: kills banding, adds physical texture */
+.app-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.028;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@keyframes aurora {
+  0% {
+    background-position:
+      0% 0%,
+      0% 0%,
+      0 0,
+      0 0;
+  }
+  100% {
+    background-position:
+      6% 10%,
+      -8% -6%,
+      0 0,
+      0 0;
+  }
+}
+
+/* ============================================================
+   Surfaces: layered glass cards with top-edge highlight
+   ============================================================ */
+.card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  backdrop-filter: blur(20px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 20px 50px -30px rgba(0, 0, 0, 0.7);
+  transition:
+    border-color 0.25s ease,
+    background 0.25s ease,
+    transform 0.25s ease;
+}
+
+.card-hover:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+/* Gradient hairline border for hero elements */
+.card-accent {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--bg), var(--bg)) padding-box,
+    linear-gradient(
+        135deg,
+        rgba(124, 127, 242, 0.5),
+        rgba(255, 255, 255, 0.06) 40%,
+        rgba(56, 207, 217, 0.45)
+      )
+      border-box;
+}
+
+/* ============================================================
+   Controls
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 13.5px;
+  font-weight: 560;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-1);
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.25s ease,
+    color 0.2s ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn:focus-visible {
+  outline: 2px solid rgba(124, 127, 242, 0.6);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background: linear-gradient(
+    135deg,
+    rgba(124, 127, 242, 0.18),
+    rgba(56, 207, 217, 0.14)
+  );
+  border-color: rgba(124, 127, 242, 0.35);
+  color: #dfe2ff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  border-color: rgba(124, 127, 242, 0.6);
+  background: linear-gradient(
+    135deg,
+    rgba(124, 127, 242, 0.28),
+    rgba(56, 207, 217, 0.2)
+  );
+  box-shadow: 0 8px 32px -12px rgba(124, 127, 242, 0.5);
+}
+
+.btn-danger {
+  color: #ffd4da;
+  border-color: rgba(242, 109, 128, 0.3);
+}
+
+.btn-danger:hover:not(:disabled) {
+  border-color: rgba(242, 109, 128, 0.55);
+  background: rgba(242, 109, 128, 0.08);
+}
+
+/* ============================================================
+   Progress & meters
+   ============================================================ */
+.meter {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-a), var(--accent-b));
+  position: relative;
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Shimmer sweep across the fill — communicates "actively working" */
+.meter-live .meter-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 2.2s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 220% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
+}
+
+/* ============================================================
+   Typography helpers
+   ============================================================ */
+.label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.display-num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.gradient-text {
+  background: linear-gradient(120deg, #c7c9ff, #8ce6ec);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ============================================================
+   Status dot with breathing ring
+   ============================================================ */
+.status-dot {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+
+.status-dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  opacity: 0;
+  animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.7;
+  }
+  80%,
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
