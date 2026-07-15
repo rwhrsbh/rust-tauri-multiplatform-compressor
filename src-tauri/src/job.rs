@@ -1,7 +1,7 @@
 //! Выполнение задачи сжатия/декомпрессии: пул потоков rayon,
 //! пауза/возобновление/отмена, события прогресса в реальном времени.
 
-use crate::compressor::{physical_size, platform_compressor, CompressOutcome};
+use crate::compressor::{physical_size, platform_compressor, CompressOutcome, CompressionAlgo};
 use crate::crawler::FileEntry;
 use crate::history::{self, HistoryEntry};
 use rayon::prelude::*;
@@ -101,13 +101,14 @@ pub fn spawn_job(
     files: Vec<FileEntry>,
     control: Arc<JobControl>,
     mode: JobMode,
+    algo: CompressionAlgo,
 ) {
     control.running.store(true, Ordering::SeqCst);
     control.paused.store(false, Ordering::SeqCst);
     control.cancelled.store(false, Ordering::SeqCst);
 
     std::thread::spawn(move || {
-        run_job(app, root, files, control, mode);
+        run_job(app, root, files, control, mode, algo);
     });
 }
 
@@ -117,6 +118,7 @@ fn run_job(
     files: Vec<FileEntry>,
     control: Arc<JobControl>,
     mode: JobMode,
+    algo: CompressionAlgo,
 ) {
     let total_files = files.len() as u64;
     let total_bytes: u64 = files.iter().map(|f| f.size).sum();
@@ -190,7 +192,7 @@ fn run_job(
         })
     };
 
-    let compressor = platform_compressor();
+    let compressor = platform_compressor(algo);
 
     files.par_iter().for_each(|entry| {
         if !control.wait_if_paused() {
@@ -264,6 +266,9 @@ fn run_job(
                     original_bytes: logical_done,
                     saved_bytes: logical_done as i64 - physical_after as i64,
                     partial: cancelled,
+                    // Алгоритм выбирается на Windows (WOF) и Linux (Btrfs);
+                    // на macOS ditto всегда zlib — не записываем.
+                    algorithm: cfg!(any(windows, target_os = "linux")).then_some(algo),
                 },
             );
         }

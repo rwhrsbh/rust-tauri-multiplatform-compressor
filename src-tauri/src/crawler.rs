@@ -2,7 +2,9 @@
 //! и оценка потенциала сжатия по типам содержимого.
 
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 use walkdir::WalkDir;
 
 /// Расширения, которые никогда не трогаем: исполняемые файлы и библиотеки.
@@ -18,6 +20,8 @@ pub struct FileEntry {
     pub size: u64,
     /// Файл уже прозрачно сжат (физический размер заметно меньше логического).
     pub is_compressed: bool,
+    /// Unix-время последнего изменения (секунды); None, если ФС не отдала.
+    pub modified: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -60,7 +64,31 @@ pub struct AnalysisSummary {
     /// (Windows-бинарники в папке на Linux/macOS). Сжатие работает так же:
     /// файлы лежат в обычной ФС хоста, а .exe/.dll мы не трогаем.
     pub proton_hint: bool,
+    /// Прогноз итогового размера для каждого WOF-алгоритма (Windows),
+    /// чтобы фронтенд пересчитывал оценку без повторного сканирования.
+    pub estimated_bytes_by_algo: HashMap<String, u64>,
 }
+
+/// Множитель экономии относительно базовой таблицы коэффициентов
+/// (база откалибрована под XPRESS8K; zstd на Btrfs сопоставим).
+fn algo_savings_factor(algo: &str) -> f64 {
+    match algo {
+        // WOF (Windows/NTFS)
+        "xpress4k" => 0.85,
+        "xpress8k" => 1.0,
+        "xpress16k" => 1.08,
+        "lzx" => 1.35,
+        // Btrfs (Linux)
+        "zstd" => 1.05,
+        "zlib" => 1.0,
+        "lzo" => 0.65,
+        _ => 1.0,
+    }
+}
+
+pub const ALGO_IDS: &[&str] = &[
+    "xpress4k", "xpress8k", "xpress16k", "lzx", "zstd", "zlib", "lzo",
+];
 
 impl ScanResult {
     pub fn summary(&self) -> AnalysisSummary {
@@ -82,6 +110,19 @@ impl ScanResult {
             .root
             .components()
             .any(|c| c.as_os_str().eq_ignore_ascii_case("steamapps"));
+        // Прогноз для каждого алгоритма: масштабируем базовую экономию
+        let base_savings = self.todo_bytes.saturating_sub(self.todo_estimated_bytes);
+        let estimated_bytes_by_algo = ALGO_IDS
+            .iter()
+            .map(|&algo| {
+                let savings = ((base_savings as f64) * algo_savings_factor(algo)) as u64;
+                let todo_est = self.todo_bytes.saturating_sub(savings.min(self.todo_bytes));
+                (
+                    algo.to_string(),
+                    skipped_bytes + self.already_physical_bytes + todo_est,
+                )
+            })
+            .collect();
         AnalysisSummary {
             root: self.root.display().to_string(),
             total_files: self.total_files,
@@ -96,6 +137,7 @@ impl ScanResult {
                 .saturating_sub(self.already_physical_bytes),
             proton_hint: cfg!(not(target_os = "windows"))
                 && (self.windows_binaries > 0 || is_steam_path),
+            estimated_bytes_by_algo,
         }
     }
 }
@@ -124,6 +166,11 @@ fn compression_ratio(ext: &str) -> f64 {
         // Всё остальное — консервативная средняя оценка
         _ => 0.75,
     }
+}
+
+/// Ожидаемый коэффициент сжатия для файла (по расширению).
+pub fn estimate_ratio(path: &Path) -> f64 {
+    compression_ratio(&extension_of(path))
 }
 
 fn extension_of(path: &Path) -> String {
@@ -211,6 +258,11 @@ pub fn scan_folder(
             path: entry.path().to_path_buf(),
             size,
             is_compressed,
+            modified: meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_secs()),
         });
     }
 

@@ -23,7 +23,7 @@ const ru: Dict = {
   "disk.free": "{p}% свободно · {free} из {total}",
   "disk.blocked": "Внимание! Дальнейшие действия заблокированы",
   "fs.ok.ntfs":
-    "Файловая система подходит. Прозрачное сжатие поддерживается (NTFS: WOF/LZX с откатом на LZNT1).",
+    "Файловая система подходит. Прозрачное сжатие поддерживается (NTFS: WOF: XPRESS/LZX с откатом на LZNT1).",
   "fs.ok.apfs":
     "Файловая система подходит. Прозрачное сжатие поддерживается (APFS/HFS+: decmpfs).",
   "fs.ok.btrfs":
@@ -78,6 +78,31 @@ const ru: Dict = {
     "{n} файлов уже сжаты ранее (сэкономлено {v}) — они будут пропущены.",
   "analysis.allCompressed":
     "Эта папка уже полностью сжата. Повторное сжатие не требуется — можно вернуть её в исходное состояние.",
+  "history.stale": "нужно обновить сжатие",
+  "history.staleHint": "игра обновилась · можно освободить ~{v}",
+  "history.missing": "папка не найдена",
+  "history.recompress": "Дожать",
+  "history.checking": "проверка…",
+  "history.delete": "Убрать из истории",
+  "history.open": "Показать в проводнике",
+  "level.title": "Уровень сжатия",
+  "level.desc.xpress4k": "Самый быстрый, минимальная экономия — для слабых CPU",
+  "level.desc.xpress8k": "Баланс скорости и экономии (рекомендуется)",
+  "level.desc.xpress16k": "Сильнее сжатие, медленнее чтение на старых CPU",
+  "level.desc.lzx": "Максимальная экономия, самый медленный — для редко запускаемых игр",
+  "level.desc.zstd": "Лучший баланс для Btrfs (рекомендуется)",
+  "level.desc.zlib": "Классический, медленнее zstd при похожей экономии",
+  "level.desc.lzo": "Самый быстрый, минимальная экономия",
+  "drop.hint": "Перетащите папку с игрой сюда",
+  "drop.notFolder": "Можно перетаскивать только папки",
+  "library.title": "Библиотека игр",
+  "library.compressed": "сжато",
+  "library.empty": "Лаунчеры не найдены",
+  "library.count": "{n} игр",
+  "tabs.compress": "Сжатие",
+  "tabs.library": "Библиотека",
+  "tabs.history": "История",
+  "history.empty": "Пока пусто — сожмите первую игру.",
 };
 
 const en: Dict = {
@@ -92,7 +117,7 @@ const en: Dict = {
   "disk.free": "{p}% free · {free} of {total}",
   "disk.blocked": "Warning! Further actions are blocked",
   "fs.ok.ntfs":
-    "Filesystem is suitable. Transparent compression is supported (NTFS: WOF/LZX with LZNT1 fallback).",
+    "Filesystem is suitable. Transparent compression is supported (NTFS: WOF: XPRESS/LZX with LZNT1 fallback).",
   "fs.ok.apfs":
     "Filesystem is suitable. Transparent compression is supported (APFS/HFS+: decmpfs).",
   "fs.ok.btrfs":
@@ -147,6 +172,31 @@ const en: Dict = {
     "{n} files were already compressed earlier ({v} saved) — they will be skipped.",
   "analysis.allCompressed":
     "This folder is already fully compressed. No re-compression needed — you can restore it to its original state.",
+  "history.stale": "needs re-compression",
+  "history.staleHint": "game updated · ~{v} can be freed",
+  "history.missing": "folder not found",
+  "history.recompress": "Re-compress",
+  "history.checking": "checking…",
+  "history.delete": "Remove from history",
+  "history.open": "Show in file manager",
+  "level.title": "Compression level",
+  "level.desc.xpress4k": "Fastest, lightest savings — best for weak CPUs",
+  "level.desc.xpress8k": "Balanced speed and savings (recommended)",
+  "level.desc.xpress16k": "Stronger compression, slower reads on old CPUs",
+  "level.desc.lzx": "Maximum savings, slowest — for rarely played games",
+  "level.desc.zstd": "Best balance for Btrfs (recommended)",
+  "level.desc.zlib": "Classic, slower than zstd with similar savings",
+  "level.desc.lzo": "Fastest, lightest savings",
+  "drop.hint": "Drop a game folder here",
+  "drop.notFolder": "Only folders can be dropped",
+  "library.title": "Game library",
+  "library.compressed": "compressed",
+  "library.empty": "No launchers found",
+  "library.count": "{n} games",
+  "tabs.compress": "Compress",
+  "tabs.library": "Library",
+  "tabs.history": "History",
+  "history.empty": "Nothing here yet — compress your first game.",
 };
 
 const uk: Dict = {
@@ -161,7 +211,7 @@ const uk: Dict = {
   "disk.free": "{p}% вільно · {free} із {total}",
   "disk.blocked": "Увага! Подальші дії заблоковано",
   "fs.ok.ntfs":
-    "Файлова система підходить. Прозоре стиснення підтримується (NTFS: WOF/LZX з відкатом на LZNT1).",
+    "Файлова система підходить. Прозоре стиснення підтримується (NTFS: WOF: XPRESS/LZX з відкатом на LZNT1).",
   "fs.ok.apfs":
     "Файлова система підходить. Прозоре стиснення підтримується (APFS/HFS+: decmpfs).",
   "fs.ok.btrfs":
@@ -216,6 +266,31 @@ const uk: Dict = {
     "{n} файлів вже стиснено раніше (заощаджено {v}) — їх буде пропущено.",
   "analysis.allCompressed":
     "Ця тека вже повністю стиснена. Повторне стиснення не потрібне — можна повернути її до початкового стану.",
+  "history.stale": "потрібно оновити стиснення",
+  "history.staleHint": "гра оновилася · можна звільнити ~{v}",
+  "history.missing": "теку не знайдено",
+  "history.recompress": "Дотиснути",
+  "history.checking": "перевірка…",
+  "history.delete": "Прибрати з історії",
+  "history.open": "Показати у провіднику",
+  "level.title": "Рівень стиснення",
+  "level.desc.xpress4k": "Найшвидший, мінімальна економія — для слабких CPU",
+  "level.desc.xpress8k": "Баланс швидкості та економії (рекомендовано)",
+  "level.desc.xpress16k": "Сильніше стиснення, повільніше читання на старих CPU",
+  "level.desc.lzx": "Максимальна економія, найповільніший — для ігор, що рідко запускаються",
+  "level.desc.zstd": "Найкращий баланс для Btrfs (рекомендовано)",
+  "level.desc.zlib": "Класичний, повільніший за zstd з подібною економією",
+  "level.desc.lzo": "Найшвидший, мінімальна економія",
+  "drop.hint": "Перетягніть теку з грою сюди",
+  "drop.notFolder": "Перетягувати можна лише теки",
+  "library.title": "Бібліотека ігор",
+  "library.compressed": "стиснено",
+  "library.empty": "Лаунчери не знайдено",
+  "library.count": "{n} ігор",
+  "tabs.compress": "Стиснення",
+  "tabs.library": "Бібліотека",
+  "tabs.history": "Історія",
+  "history.empty": "Поки порожньо — стисніть першу гру.",
 };
 
 const de: Dict = {
@@ -230,7 +305,7 @@ const de: Dict = {
   "disk.free": "{p}% frei · {free} von {total}",
   "disk.blocked": "Achtung! Weitere Aktionen sind blockiert",
   "fs.ok.ntfs":
-    "Dateisystem ist geeignet. Transparente Kompression wird unterstützt (NTFS: WOF/LZX mit LZNT1-Fallback).",
+    "Dateisystem ist geeignet. Transparente Kompression wird unterstützt (NTFS: WOF: XPRESS/LZX mit LZNT1-Fallback).",
   "fs.ok.apfs":
     "Dateisystem ist geeignet. Transparente Kompression wird unterstützt (APFS/HFS+: decmpfs).",
   "fs.ok.btrfs":
@@ -285,6 +360,31 @@ const de: Dict = {
     "{n} Dateien wurden bereits komprimiert ({v} gespart) — sie werden übersprungen.",
   "analysis.allCompressed":
     "Dieser Ordner ist bereits vollständig komprimiert. Keine erneute Komprimierung nötig — Sie können den Ursprungszustand wiederherstellen.",
+  "history.stale": "Neukomprimierung nötig",
+  "history.staleHint": "Spiel aktualisiert · ~{v} können freigegeben werden",
+  "history.missing": "Ordner nicht gefunden",
+  "history.recompress": "Nachkomprimieren",
+  "history.checking": "Prüfung…",
+  "history.delete": "Aus dem Verlauf entfernen",
+  "history.open": "Im Dateimanager anzeigen",
+  "level.title": "Kompressionsstufe",
+  "level.desc.xpress4k": "Am schnellsten, geringste Ersparnis — für schwache CPUs",
+  "level.desc.xpress8k": "Ausgewogene Geschwindigkeit und Ersparnis (empfohlen)",
+  "level.desc.xpress16k": "Stärkere Kompression, langsameres Lesen auf alten CPUs",
+  "level.desc.lzx": "Maximale Ersparnis, am langsamsten — für selten gespielte Spiele",
+  "level.desc.zstd": "Beste Balance für Btrfs (empfohlen)",
+  "level.desc.zlib": "Klassisch, langsamer als zstd bei ähnlicher Ersparnis",
+  "level.desc.lzo": "Am schnellsten, geringste Ersparnis",
+  "drop.hint": "Spielordner hier ablegen",
+  "drop.notFolder": "Nur Ordner können abgelegt werden",
+  "library.title": "Spielebibliothek",
+  "library.compressed": "komprimiert",
+  "library.empty": "Keine Launcher gefunden",
+  "library.count": "{n} Spiele",
+  "tabs.compress": "Komprimieren",
+  "tabs.library": "Bibliothek",
+  "tabs.history": "Verlauf",
+  "history.empty": "Noch leer — komprimieren Sie Ihr erstes Spiel.",
 };
 
 const dicts: Record<Lang, Dict> = { ru, en, uk, de };

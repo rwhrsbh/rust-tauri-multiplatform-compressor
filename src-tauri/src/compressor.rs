@@ -9,8 +9,32 @@
 //!   `BTRFS_IOC_DEFRAG_RANGE` со сжатием zstd чанками по 256 МБ,
 //!   чтобы отмена срабатывала быстро даже на огромных файлах.
 
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
+
+/// Алгоритм сжатия. Xpress*/Lzx — WOF (Windows/NTFS);
+/// Zstd/Zlib/Lzo — Btrfs (Linux). macOS (decmpfs) всегда zlib:
+/// `ditto` другие типы не умеет, LZVN/LZFSE потребовали бы ручной
+/// записи decmpfs-xattr.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CompressionAlgo {
+    Xpress4k,
+    Xpress8k,
+    Xpress16k,
+    Lzx,
+    Zstd,
+    Zlib,
+    Lzo,
+}
+
+impl Default for CompressionAlgo {
+    /// Баланс скорости и степени сжатия (как у `compact.exe /EXE` по умолчанию).
+    fn default() -> Self {
+        Self::Xpress8k
+    }
+}
 
 /// Результат обработки одного файла.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -43,18 +67,21 @@ pub trait Compressor: Send + Sync {
 }
 
 /// Компрессор для текущей платформы.
-pub fn platform_compressor() -> Box<dyn Compressor> {
+pub fn platform_compressor(algo: CompressionAlgo) -> Box<dyn Compressor> {
     #[cfg(target_os = "windows")]
     {
-        Box::new(windows_impl::WofCompressor)
+        Box::new(windows_impl::WofCompressor { algo })
     }
     #[cfg(target_os = "macos")]
     {
+        let _ = algo;
         Box::new(macos_impl::DittoCompressor)
     }
     #[cfg(target_os = "linux")]
     {
-        Box::new(linux_impl::BtrfsCompressor)
+        Box::new(linux_impl::BtrfsCompressor {
+            compress_type: linux_impl::btrfs_compress_type(algo),
+        })
     }
 }
 
@@ -77,7 +104,7 @@ pub fn physical_size(path: &Path) -> u64 {
 // ===========================================================================
 #[cfg(target_os = "windows")]
 mod windows_impl {
-    use super::{CompressOutcome, Compressor};
+    use super::{CompressOutcome, CompressionAlgo, Compressor};
     use std::os::windows::ffi::OsStrExt;
     use std::path::Path;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -97,7 +124,22 @@ mod windows_impl {
     const WOF_CURRENT_VERSION: u32 = 1;
     const WOF_PROVIDER_FILE: u32 = 2;
     const FILE_PROVIDER_CURRENT_VERSION: u32 = 1;
-    const FILE_PROVIDER_COMPRESSION_LZX: u32 = 3;
+    // wofapi.h: FILE_PROVIDER_COMPRESSION_*
+    const FILE_PROVIDER_COMPRESSION_XPRESS4K: u32 = 0;
+    const FILE_PROVIDER_COMPRESSION_LZX: u32 = 1;
+    const FILE_PROVIDER_COMPRESSION_XPRESS8K: u32 = 2;
+    const FILE_PROVIDER_COMPRESSION_XPRESS16K: u32 = 3;
+
+    fn wof_constant(algo: CompressionAlgo) -> u32 {
+        match algo {
+            CompressionAlgo::Xpress4k => FILE_PROVIDER_COMPRESSION_XPRESS4K,
+            CompressionAlgo::Xpress8k => FILE_PROVIDER_COMPRESSION_XPRESS8K,
+            CompressionAlgo::Xpress16k => FILE_PROVIDER_COMPRESSION_XPRESS16K,
+            CompressionAlgo::Lzx => FILE_PROVIDER_COMPRESSION_LZX,
+            // Btrfs-алгоритмы сюда попасть не должны — безопасный дефолт
+            _ => FILE_PROVIDER_COMPRESSION_XPRESS8K,
+        }
+    }
 
     const COMPRESSION_FORMAT_DEFAULT: u16 = 1; // LZNT1
     const COMPRESSION_FORMAT_NONE: u16 = 0;
@@ -142,13 +184,13 @@ mod windows_impl {
         }
     }
 
-    /// Сжатие через WOF (как `compact.exe /EXE:LZX`).
-    fn wof_compress(handle: HANDLE) -> windows::core::Result<()> {
+    /// Сжатие через WOF (как `compact.exe /EXE:<алгоритм>`).
+    fn wof_compress(handle: HANDLE, algorithm: u32) -> windows::core::Result<()> {
         let info = WofFileCompressionInfo {
             wof_version: WOF_CURRENT_VERSION,
             wof_provider: WOF_PROVIDER_FILE,
             provider_version: FILE_PROVIDER_CURRENT_VERSION,
-            algorithm: FILE_PROVIDER_COMPRESSION_LZX,
+            algorithm,
             flags: 0,
         };
         unsafe {
@@ -208,7 +250,9 @@ mod windows_impl {
         ((high as u64) << 32) | low as u64
     }
 
-    pub struct WofCompressor;
+    pub struct WofCompressor {
+        pub algo: CompressionAlgo,
+    }
 
     impl Compressor for WofCompressor {
         fn compress_file(
@@ -224,7 +268,7 @@ mod windows_impl {
             let handle = open_rw(path)?;
             let guard = HandleGuard(handle);
 
-            match wof_compress(guard.0) {
+            match wof_compress(guard.0, wof_constant(self.algo)) {
                 Ok(()) => Ok(CompressOutcome::Done),
                 Err(e) if e.code() == ERROR_COMPRESSION_NOT_BENEFICIAL.into() => {
                     Ok(CompressOutcome::NotBeneficial)
@@ -375,7 +419,7 @@ mod macos_impl {
 // ===========================================================================
 #[cfg(target_os = "linux")]
 mod linux_impl {
-    use super::{CompressOutcome, Compressor};
+    use super::{CompressOutcome, CompressionAlgo, Compressor};
     use std::os::fd::AsRawFd;
     use std::path::Path;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -389,7 +433,19 @@ mod linux_impl {
     // linux/btrfs.h: _IOW(BTRFS_IOCTL_MAGIC=0x94, 16, btrfs_ioctl_defrag_range_args)
     const BTRFS_IOC_DEFRAG_RANGE: libc::c_ulong = 0x4030_9410;
     const BTRFS_DEFRAG_RANGE_COMPRESS: u64 = 1;
+    // linux/btrfs.h: BTRFS_COMPRESS_*
+    const BTRFS_COMPRESS_ZLIB: u32 = 1;
+    const BTRFS_COMPRESS_LZO: u32 = 2;
     const BTRFS_COMPRESS_ZSTD: u32 = 3;
+
+    pub fn btrfs_compress_type(algo: CompressionAlgo) -> u32 {
+        match algo {
+            CompressionAlgo::Zlib => BTRFS_COMPRESS_ZLIB,
+            CompressionAlgo::Lzo => BTRFS_COMPRESS_LZO,
+            // WOF-алгоритмы сюда попасть не должны — безопасный дефолт zstd
+            _ => BTRFS_COMPRESS_ZSTD,
+        }
+    }
 
     /// Размер чанка дефрагментации: между чанками проверяется флаг отмены,
     /// поэтому отмена срабатывает быстро даже на файлах в десятки ГБ.
@@ -433,14 +489,18 @@ mod linux_impl {
         fd: i32,
         start: u64,
         len: u64,
-        compress: bool,
+        compress_type: Option<u32>,
     ) -> Result<(), std::io::Error> {
         let args = BtrfsDefragRangeArgs {
             start,
             len,
-            flags: if compress { BTRFS_DEFRAG_RANGE_COMPRESS } else { 0 },
+            flags: if compress_type.is_some() {
+                BTRFS_DEFRAG_RANGE_COMPRESS
+            } else {
+                0
+            },
             extent_thresh: 0,
-            compress_type: if compress { BTRFS_COMPRESS_ZSTD } else { 0 },
+            compress_type: compress_type.unwrap_or(0),
             unused: [0; 4],
         };
         if unsafe { libc::ioctl(fd, BTRFS_IOC_DEFRAG_RANGE, &args) } != 0 {
@@ -454,7 +514,7 @@ mod linux_impl {
         fd: i32,
         path: &Path,
         size: u64,
-        compress: bool,
+        compress_type: Option<u32>,
         cancelled: &AtomicBool,
     ) -> Result<CompressOutcome, String> {
         let mut start = 0u64;
@@ -463,7 +523,7 @@ mod linux_impl {
                 // Часть файла уже пережата — это безопасное состояние
                 return Ok(CompressOutcome::Cancelled);
             }
-            defrag_range(fd, start, DEFRAG_CHUNK, compress)
+            defrag_range(fd, start, DEFRAG_CHUNK, compress_type)
                 .map_err(|_| ioctl_err("BTRFS_IOC_DEFRAG_RANGE", path))?;
             start = start.saturating_add(DEFRAG_CHUNK);
             if start >= size {
@@ -472,7 +532,9 @@ mod linux_impl {
         }
     }
 
-    pub struct BtrfsCompressor;
+    pub struct BtrfsCompressor {
+        pub compress_type: u32,
+    }
 
     impl Compressor for BtrfsCompressor {
         fn compress_file(
@@ -499,8 +561,8 @@ mod linux_impl {
             set_flags(fd, (flags | FS_COMPR_FL) & !FS_NOCOMP_FL)
                 .map_err(|_| ioctl_err("FS_IOC_SETFLAGS", path))?;
 
-            // Пережимаем существующие данные (аналог btrfs filesystem defrag -czstd)
-            let outcome = defrag_chunked(fd, path, size, true, cancelled)?;
+            // Пережимаем существующие данные (аналог btrfs filesystem defrag -c<algo>)
+            let outcome = defrag_chunked(fd, path, size, Some(self.compress_type), cancelled)?;
 
             // Сбрасываем на диск, чтобы физический размер стал актуальным
             unsafe {
@@ -532,7 +594,7 @@ mod linux_impl {
             // Запрещаем сжатие и перезаписываем экстенты без компрессии
             set_flags(fd, (flags & !FS_COMPR_FL) | FS_NOCOMP_FL)
                 .map_err(|_| ioctl_err("FS_IOC_SETFLAGS", path))?;
-            let outcome = defrag_chunked(fd, path, size, false, cancelled)?;
+            let outcome = defrag_chunked(fd, path, size, None, cancelled)?;
             unsafe {
                 libc::fsync(fd);
             }

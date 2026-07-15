@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -10,6 +11,7 @@ import {
   Check,
   ChevronsDownUp,
   FolderOpen,
+  FolderSearch,
   Gamepad2,
   HardDrive,
   History,
@@ -17,8 +19,10 @@ import {
   Loader2,
   Pause,
   Play,
+  RefreshCw,
   ShieldCheck,
   Square,
+  Trash2,
   X,
 } from "lucide-react";
 import {
@@ -54,7 +58,39 @@ interface AnalysisSummary {
   already_compressed_files: number;
   already_saved_bytes: number;
   proton_hint: boolean;
+  estimated_bytes_by_algo: Record<string, number>;
 }
+
+interface GameEntry {
+  name: string;
+  path: string;
+  launcher: string;
+  cover: string | null;
+}
+
+type Algo =
+  | "xpress4k"
+  | "xpress8k"
+  | "xpress16k"
+  | "lzx"
+  | "zstd"
+  | "zlib"
+  | "lzo";
+
+/* WOF — Windows/NTFS; Btrfs — Linux. macOS (decmpfs) — всегда zlib, без выбора */
+const WOF_ALGOS: Algo[] = ["xpress4k", "xpress8k", "xpress16k", "lzx"];
+const BTRFS_ALGOS: Algo[] = ["zstd", "zlib", "lzo"];
+const ALGO_IDS: Algo[] = [...WOF_ALGOS, ...BTRFS_ALGOS];
+const ALGO_LABELS: Record<Algo, string> = {
+  xpress4k: "X4K",
+  xpress8k: "X8K",
+  xpress16k: "X16K",
+  lzx: "LZX",
+  zstd: "ZSTD",
+  zlib: "ZLIB",
+  lzo: "LZO",
+};
+const ALGO_KEY = "gc-algo";
 
 interface HistoryEntry {
   root: string;
@@ -63,6 +99,14 @@ interface HistoryEntry {
   original_bytes: number;
   saved_bytes: number;
   partial: boolean;
+  algorithm?: Algo | null;
+}
+
+interface StalenessPayload {
+  root: string;
+  status: "ok" | "stale" | "missing";
+  uncompressed_files: number;
+  potential_saved_bytes: number;
 }
 
 interface ProgressPayload {
@@ -94,6 +138,8 @@ interface DonePayload {
 }
 
 type Screen = "dashboard" | "working" | "done";
+type DashTab = "compress" | "library" | "history";
+const DASH_TABS: DashTab[] = ["compress", "library", "history"];
 
 /* ---------- Анимационные пресеты ---------- */
 
@@ -294,8 +340,26 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [fileLog, setFileLog] = useState<{ id: number; path: string }[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [staleness, setStaleness] = useState<Record<string, StalenessPayload>>(
+    {},
+  );
+  const [checkingStale, setCheckingStale] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [library, setLibrary] = useState<GameEntry[]>([]);
+  const [dashTab, setDashTab] = useState<DashTab>("compress");
+  const [algo, setAlgo] = useState<Algo>(() => {
+    const s = localStorage.getItem(ALGO_KEY) as Algo | null;
+    return s && ALGO_IDS.includes(s) ? s : "xpress8k";
+  });
   const logRef = useRef<string>("");
   const logId = useRef(0);
+  // Рефы для слушателей, зарегистрированных один раз при монтировании
+  const screenRef = useRef<Screen>("dashboard");
+  const analyzingRef = useRef(false);
+  const tRef = useRef(t);
+  screenRef.current = screen;
+  analyzingRef.current = analyzing;
+  tRef.current = t;
 
   const refreshHistory = useCallback(async () => {
     try {
@@ -331,6 +395,20 @@ export default function App() {
     saveLang(l);
   }, []);
 
+  const changeAlgo = useCallback((a: Algo) => {
+    setAlgo(a);
+    localStorage.setItem(ALGO_KEY, a);
+  }, []);
+
+  /* Доступные алгоритмы зависят от ФС выбранного диска */
+  const isNtfs = disk?.filesystem.toUpperCase() === "NTFS";
+  const isBtrfs = disk?.filesystem.toLowerCase().includes("btrfs") ?? false;
+  const algoChoices = isNtfs ? WOF_ALGOS : isBtrfs ? BTRFS_ALGOS : [];
+  /* Сохранённый выбор может быть с другой платформы — берём первый доступный */
+  const effAlgo: Algo = algoChoices.includes(algo)
+    ? algo
+    : (algoChoices[0] ?? algo);
+
   /* Подписка на события бэкенда */
   useEffect(() => {
     const unlisteners: UnlistenFn[] = [];
@@ -355,23 +433,33 @@ export default function App() {
           "compression://scan-progress",
           (e) => setScannedFiles(e.payload.scanned_files),
         ),
+        await listen<StalenessPayload>("history://staleness", (e) =>
+          setStaleness((prev) => ({ ...prev, [e.payload.root]: e.payload })),
+        ),
+        await listen("history://staleness-done", () =>
+          setCheckingStale(false),
+        ),
       );
     })();
     void refreshHistory();
+    // Фоновая проверка: не устарело ли сжатие папок из истории
+    setCheckingStale(true);
+    invoke("check_history_staleness").catch(() => setCheckingStale(false));
+    // Библиотека игр из лаунчеров
+    invoke<GameEntry[]>("get_game_library")
+      .then(setLibrary)
+      .catch(() => {});
     return () => unlisteners.forEach((u) => u());
   }, [refreshHistory]);
 
-  /* Выбор папки: сразу проверяем ФС и запускаем анализ */
-  const pickFolder = useCallback(async () => {
-    setError(null);
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: t("dialog.pickTitle"),
-    });
-    if (typeof selected !== "string") return;
+  const mainRef = useRef<HTMLElement>(null);
 
+  /* Проверка ФС + анализ выбранного пути (диалог, drag & drop, библиотека) */
+  const analyzePath = useCallback(async (selected: string) => {
+    setError(null);
     setGamePath(selected);
+    setDashTab("compress");
+    mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     setDisk(null);
     setAnalysis(null);
     setDone(null);
@@ -396,20 +484,112 @@ export default function App() {
     } finally {
       setAnalyzing(false);
     }
-  }, [t]);
+  }, []);
+
+  const analyzePathRef = useRef(analyzePath);
+  analyzePathRef.current = analyzePath;
+
+  /* Выбор папки через системный диалог */
+  const pickFolder = useCallback(async () => {
+    setError(null);
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: t("dialog.pickTitle"),
+    });
+    if (typeof selected !== "string") return;
+    await analyzePath(selected);
+  }, [t, analyzePath]);
+
+  /* Drag & drop папки из файлового менеджера */
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined;
+    (async () => {
+      unlisten = await getCurrentWebview().onDragDropEvent(async (event) => {
+        const type = event.payload.type;
+        if (type === "over") return; // событие идёт непрерывно
+        if (type === "enter") {
+          if (screenRef.current === "dashboard" && !analyzingRef.current) {
+            setDragOver(true);
+          }
+          return;
+        }
+        if (type === "leave") {
+          setDragOver(false);
+          return;
+        }
+        // drop
+        setDragOver(false);
+        if (screenRef.current !== "dashboard" || analyzingRef.current) return;
+        const path = event.payload.paths[0];
+        if (!path) return;
+        try {
+          const isDir = await invoke<boolean>("is_directory", { path });
+          if (!isDir) {
+            setError(tRef.current("drop.notFolder"));
+            return;
+          }
+          await analyzePathRef.current(path);
+        } catch (e) {
+          setError(String(e));
+        }
+      });
+    })();
+    return () => unlisten?.();
+  }, []);
 
   const startCompression = useCallback(async () => {
     if (!gamePath) return;
     setError(null);
     try {
-      await invoke("start_compression", { path: gamePath });
+      await invoke("start_compression", {
+        path: gamePath,
+        algorithm: effAlgo,
+      });
+      // Сжатие запущено — статус «устарело» для этой папки больше не актуален
+      setStaleness((prev) => {
+        const { [gamePath]: _, ...rest } = prev;
+        return rest;
+      });
       setProgress(null);
       setFileLog([]);
       setScreen("working");
     } catch (e) {
       setError(String(e));
     }
-  }, [gamePath]);
+  }, [gamePath, effAlgo]);
+
+  /* Дожать папку из истории: открываем экран анализа (с выбором уровня),
+     предвыбрав алгоритм прошлого сжатия */
+  const recompress = useCallback(
+    async (h: HistoryEntry) => {
+      if (h.algorithm && ALGO_IDS.includes(h.algorithm)) {
+        changeAlgo(h.algorithm);
+      }
+      await analyzePath(h.root);
+    },
+    [analyzePath, changeAlgo],
+  );
+
+  const deleteHistoryEntry = useCallback(
+    async (root: string) => {
+      try {
+        await invoke("remove_history_entry", { root });
+        void refreshHistory();
+      } catch (e) {
+        setError(String(e));
+      }
+    },
+    [refreshHistory],
+  );
+
+  const openInExplorer = useCallback(async (path: string) => {
+    try {
+      await invoke("open_in_explorer", { path });
+    } catch (e) {
+      setError(String(e));
+    }
+  }, []);
 
   const startDecompression = useCallback(
     async (path?: string) => {
@@ -467,6 +647,32 @@ export default function App() {
     [lang],
   );
 
+  /* Прогноз с учётом выбранного уровня сжатия (WOF/Btrfs) */
+  const estimatedBytes = analysis
+    ? (algoChoices.length > 0
+        ? analysis.estimated_bytes_by_algo?.[effAlgo]
+        : undefined) ?? analysis.estimated_bytes
+    : 0;
+  const estimatedSavingsPct = analysis
+    ? Math.round(
+        Math.max(0, 1 - estimatedBytes / Math.max(analysis.total_bytes, 1)) *
+          100,
+      )
+    : 0;
+
+  /* Папки из истории — для бейджа «сжато» в библиотеке */
+  const compressedRoots = useMemo(
+    () => new Set(history.map((h) => h.root.toLowerCase())),
+    [history],
+  );
+
+  /* Сколько записей истории требуют дожатия — точка-индикатор на вкладке */
+  const staleCount = useMemo(
+    () =>
+      Object.values(staleness).filter((s) => s.status === "stale").length,
+    [staleness],
+  );
+
   return (
     <div className="app-bg flex h-full flex-col overflow-hidden">
       {/* ---------- Шапка ---------- */}
@@ -501,7 +707,7 @@ export default function App() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -6, scale: 0.97 }}
                   transition={{ duration: 0.18, ease: EASE }}
-                  className="card absolute right-0 top-11 z-50 w-52 p-1.5"
+                  className="card !absolute right-0 top-11 z-50 w-52 p-1.5"
                 >
                   <div className="label px-2.5 pb-1.5 pt-1.5">
                     {t("settings.language")}
@@ -535,9 +741,32 @@ export default function App() {
         </div>
       </header>
 
+      {/* ---------- Оверлей drag & drop ---------- */}
+      <AnimatePresence>
+        {dragOver && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="pointer-events-none fixed inset-0 z-40 grid place-items-center bg-black/40 p-6"
+          >
+            <div className="card card-accent flex items-center gap-4 border-2 border-dashed border-[--accent-a] px-10 py-8">
+              <FolderOpen className="h-6 w-6 text-[--accent-a]" />
+              <span className="text-[15px] font-semibold text-[--text-1]">
+                {t("drop.hint")}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ---------- Контент ---------- */}
+      {/* scrollbar-gutter: stable — чтобы появление скроллбара не сдвигало
+          центрированный контент (прыжок вёрстки при открытии дропдауна) */}
       <main
-        className="flex-1 overflow-y-auto px-7 py-8"
+        ref={mainRef}
+        className="flex-1 overflow-y-auto px-7 py-8 [scrollbar-gutter:stable_both-edges]"
         onClick={() => langOpen && setLangOpen(false)}
       >
         <AnimatePresence>
@@ -571,12 +800,40 @@ export default function App() {
               initial="initial"
               animate="animate"
               exit="exit"
-              className={`mx-auto flex max-w-3xl flex-col gap-4 ${
-                !disk && !analyzing && history.length === 0
-                  ? "min-h-full justify-center pb-24"
-                  : ""
-              }`}
+              className="mx-auto flex max-w-3xl flex-col gap-4"
             >
+              {/* Вкладки: Сжатие / Библиотека / История */}
+              <motion.div variants={itemVariants} className="flex gap-1.5">
+                {DASH_TABS.map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setDashTab(tab)}
+                    className={`relative rounded-xl border px-4 py-2 text-[12.5px] font-semibold transition-colors ${
+                      dashTab === tab
+                        ? "border-[--accent-a] bg-white/[0.06] text-[--text-1]"
+                        : "border-[--border] bg-[--surface] text-[--text-3] hover:text-[--text-1]"
+                    }`}
+                  >
+                    {t(`tabs.${tab}`)}
+                    {tab === "library" && library.length > 0 && (
+                      <span className="display-num ml-1.5 text-[10px] text-[--text-3]">
+                        {library.length}
+                      </span>
+                    )}
+                    {tab === "history" && history.length > 0 && (
+                      <span className="display-num ml-1.5 text-[10px] text-[--text-3]">
+                        {history.length}
+                      </span>
+                    )}
+                    {tab === "history" && staleCount > 0 && (
+                      <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[--warning]" />
+                    )}
+                  </button>
+                ))}
+              </motion.div>
+
+              {dashTab === "compress" && (
+                <>
               {/* Hero: выбор папки */}
               <motion.div
                 variants={itemVariants}
@@ -701,12 +958,12 @@ export default function App() {
                     />
                     <Stat
                       label={t("analysis.after")}
-                      value={`~${fmtBytes(analysis.estimated_bytes)}`}
+                      value={`~${fmtBytes(estimatedBytes)}`}
                       tone="accent"
                     />
                     <Stat
                       label={t("analysis.savings")}
-                      value={`~${Math.round(analysis.estimated_savings_ratio * 100)}%`}
+                      value={`~${estimatedSavingsPct}%`}
                       tone="success"
                     />
                   </div>
@@ -745,27 +1002,55 @@ export default function App() {
                       </Btn>
                     </div>
                   ) : (
-                    <div className="card flex flex-wrap items-center justify-between gap-4 p-6">
-                      <p className="max-w-md text-[12px] leading-relaxed text-[--text-3]">
-                        {t("analysis.skippedNote", {
-                          n: fmtInt(analysis.skipped_files),
-                        })}
-                      </p>
-                      <Btn
-                        onClick={startCompression}
-                        disabled={analysis.compressible_files === 0}
-                        kind="primary"
-                      >
-                        <ChevronsDownUp className="h-4 w-4" />
-                        {t("analysis.start")}
-                      </Btn>
+                    <div className="card flex flex-col gap-5 p-6">
+                      {/* Уровень сжатия: WOF на NTFS, zstd/zlib/lzo на Btrfs */}
+                      {algoChoices.length > 0 && (
+                        <div>
+                          <div className="label">{t("level.title")}</div>
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            {algoChoices.map((a) => (
+                              <button
+                                key={a}
+                                onClick={() => changeAlgo(a)}
+                                className={`font-mono rounded-lg border px-3 py-1.5 text-[11px] font-semibold tracking-wider transition-colors ${
+                                  effAlgo === a
+                                    ? "border-[--accent-a] bg-white/[0.06] text-[--text-1]"
+                                    : "border-[--border] bg-[--surface] text-[--text-3] hover:text-[--text-1]"
+                                }`}
+                              >
+                                {ALGO_LABELS[a]}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="mt-2 text-[11.5px] text-[--text-3]">
+                            {t(`level.desc.${effAlgo}`)}
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap items-center justify-between gap-4">
+                        <p className="max-w-md text-[12px] leading-relaxed text-[--text-3]">
+                          {t("analysis.skippedNote", {
+                            n: fmtInt(analysis.skipped_files),
+                          })}
+                        </p>
+                        <Btn
+                          onClick={startCompression}
+                          disabled={analysis.compressible_files === 0}
+                          kind="primary"
+                        >
+                          <ChevronsDownUp className="h-4 w-4" />
+                          {t("analysis.start")}
+                        </Btn>
+                      </div>
                     </div>
                   )}
                 </motion.div>
               )}
+                </>
+              )}
 
               {/* История сжатий */}
-              {history.length > 0 && (
+              {dashTab === "history" && (
                 <motion.div
                   variants={itemVariants}
                   initial="initial"
@@ -779,39 +1064,180 @@ export default function App() {
                     <div className="text-[14px] font-semibold">
                       {t("history.title")}
                     </div>
+                    {checkingStale && (
+                      <span className="ml-auto flex items-center gap-1.5 text-[11px] text-[--text-3]">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        {t("history.checking")}
+                      </span>
+                    )}
                   </div>
+                  {history.length === 0 && (
+                    <p className="mt-4 text-[12.5px] text-[--text-3]">
+                      {t("history.empty")}
+                    </p>
+                  )}
                   <div className="mt-4 flex flex-col gap-2">
-                    {history.map((h) => (
-                      <div
-                        key={h.root}
-                        className="flex items-center gap-4 rounded-xl border border-[--border] bg-[--surface] px-4 py-3 transition-colors hover:bg-white/[0.04]"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="font-mono truncate text-[12px] text-[--text-1]">
-                            {h.root}
+                    {history.map((h) => {
+                      const st = staleness[h.root];
+                      const isStale = st?.status === "stale";
+                      const isMissing = st?.status === "missing";
+                      return (
+                        <div
+                          key={h.root}
+                          className="flex items-center gap-4 rounded-xl border border-[--border] bg-[--surface] px-4 py-3 transition-colors hover:bg-white/[0.04]"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="font-mono truncate text-[12px] text-[--text-1]">
+                              {h.root}
+                            </div>
+                            <div className="mt-0.5 text-[11px] text-[--text-3]">
+                              {dfmt.format(h.date * 1000)} ·{" "}
+                              {t("history.meta", {
+                                n: fmtInt(h.files),
+                                v: fmtBytes(Math.max(h.saved_bytes, 0)),
+                              })}
+                              {h.algorithm && (
+                                <span className="font-mono ml-1.5 rounded border border-[--border] px-1.5 py-0.5 text-[9.5px] uppercase tracking-wider text-[--text-3]">
+                                  {ALGO_LABELS[h.algorithm]}
+                                </span>
+                              )}
+                              {h.partial && (
+                                <span className="ml-1.5 rounded bg-[rgba(232,180,90,0.12)] px-1.5 py-0.5 text-[10px] text-[--warning]">
+                                  {t("history.partial")}
+                                </span>
+                              )}
+                              {isStale && (
+                                <span className="ml-1.5 rounded bg-[rgba(232,180,90,0.12)] px-1.5 py-0.5 text-[10px] text-[--warning]">
+                                  {t("history.stale")}
+                                </span>
+                              )}
+                              {isMissing && (
+                                <span className="ml-1.5 rounded bg-[rgba(242,109,128,0.12)] px-1.5 py-0.5 text-[10px] text-[--danger]">
+                                  {t("history.missing")}
+                                </span>
+                              )}
+                            </div>
+                            {isStale && (
+                              <div className="mt-0.5 text-[11px] text-[--warning]">
+                                {t("history.staleHint", {
+                                  v: fmtBytes(st.potential_saved_bytes),
+                                })}
+                              </div>
+                            )}
                           </div>
-                          <div className="mt-0.5 text-[11px] text-[--text-3]">
-                            {dfmt.format(h.date * 1000)} ·{" "}
-                            {t("history.meta", {
-                              n: fmtInt(h.files),
-                              v: fmtBytes(Math.max(h.saved_bytes, 0)),
-                            })}
-                            {h.partial && (
-                              <span className="ml-1.5 rounded bg-[rgba(232,180,90,0.12)] px-1.5 py-0.5 text-[10px] text-[--warning]">
-                                {t("history.partial")}
+                          {isStale && (
+                            <Btn
+                              onClick={() => recompress(h)}
+                              kind="primary"
+                              className="shrink-0 !px-3.5 !py-2 !text-[12px]"
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                              {t("history.recompress")}
+                            </Btn>
+                          )}
+                          <Btn
+                            onClick={() => startDecompression(h.root)}
+                            disabled={isMissing}
+                            className="shrink-0 !px-3.5 !py-2 !text-[12px]"
+                          >
+                            <ArchiveRestore className="h-3.5 w-3.5" />
+                            {t("history.restore")}
+                          </Btn>
+                          <button
+                            onClick={() => openInExplorer(h.root)}
+                            disabled={isMissing}
+                            title={t("history.open")}
+                            className="shrink-0 rounded-lg p-2 text-[--text-3] transition-colors hover:bg-white/[0.06] hover:text-[--text-1] disabled:opacity-30"
+                          >
+                            <FolderSearch className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteHistoryEntry(h.root)}
+                            title={t("history.delete")}
+                            className="shrink-0 rounded-lg p-2 text-[--text-3] transition-colors hover:bg-white/[0.06] hover:text-[--danger]"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Библиотека игр из лаунчеров */}
+              {dashTab === "library" && (
+                <motion.div
+                  variants={itemVariants}
+                  initial="initial"
+                  animate="animate"
+                  className="card p-6"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-9 w-9 place-items-center rounded-xl border border-[--border] bg-[--surface]">
+                      <Gamepad2 className="h-4 w-4 text-[--text-2]" />
+                    </div>
+                    <div className="text-[14px] font-semibold">
+                      {t("library.title")}
+                    </div>
+                    <span className="ml-auto text-[11px] text-[--text-3]">
+                      {t("library.count", { n: fmtInt(library.length) })}
+                    </span>
+                  </div>
+                  {library.length === 0 && (
+                    <p className="mt-4 text-[12.5px] text-[--text-3]">
+                      {t("library.empty")}
+                    </p>
+                  )}
+                  <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+                    {library.map((g) => {
+                      const done = compressedRoots.has(g.path.toLowerCase());
+                      const selected = gamePath === g.path;
+                      return (
+                        <button
+                          key={g.path}
+                          onClick={() => analyzePath(g.path)}
+                          disabled={analyzing}
+                          title={g.path}
+                          className="group flex flex-col gap-1.5 text-left disabled:opacity-50"
+                        >
+                          <div
+                            className={`relative aspect-[2/3] w-full overflow-hidden rounded-xl border bg-[--surface] transition-all ${
+                              selected
+                                ? "border-[--accent-a] shadow-[0_0_0_2px_rgba(124,127,242,0.35)]"
+                                : "border-[--border] group-hover:border-[--border-strong]"
+                            }`}
+                          >
+                            {g.cover ? (
+                              <img
+                                src={g.cover}
+                                alt={g.name}
+                                loading="lazy"
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+                              />
+                            ) : (
+                              <div className="grid h-full w-full place-items-center p-2">
+                                <Gamepad2 className="h-6 w-6 text-[--text-3]" />
+                                <span className="line-clamp-3 text-center text-[10.5px] leading-snug text-[--text-2]">
+                                  {g.name}
+                                </span>
+                              </div>
+                            )}
+                            <span className="font-mono absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wider text-[--text-2] backdrop-blur">
+                              {g.launcher}
+                            </span>
+                            {done && (
+                              <span className="absolute bottom-1.5 right-1.5 rounded bg-[rgba(63,211,148,0.85)] px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wider text-black">
+                                {t("library.compressed")}
                               </span>
                             )}
                           </div>
-                        </div>
-                        <Btn
-                          onClick={() => startDecompression(h.root)}
-                          className="shrink-0 !px-3.5 !py-2 !text-[12px]"
-                        >
-                          <ArchiveRestore className="h-3.5 w-3.5" />
-                          {t("history.restore")}
-                        </Btn>
-                      </div>
-                    ))}
+                          <span className="truncate text-[11px] text-[--text-2] group-hover:text-[--text-1]">
+                            {g.name}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </motion.div>
               )}

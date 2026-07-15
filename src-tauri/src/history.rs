@@ -2,6 +2,7 @@
 //! сколько места освобождено. Хранится в history.json в каталоге
 //! данных приложения; используется для отката (декомпрессии).
 
+use crate::compressor::CompressionAlgo;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
@@ -20,6 +21,9 @@ pub struct HistoryEntry {
     pub saved_bytes: i64,
     /// true, если сжатие было прервано отменой (сжата часть файлов).
     pub partial: bool,
+    /// Алгоритм WOF (Windows); None для старых записей и других ОС.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub algorithm: Option<CompressionAlgo>,
 }
 
 fn store_path(app: &AppHandle) -> Result<PathBuf, String> {
